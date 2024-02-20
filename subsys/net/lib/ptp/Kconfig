@@ -39,6 +39,36 @@ config PTP_CLOCK_TYPE
 	default 0x03 if PTP_TRANSPARENT_E2E_CLOCK
 
 choice
+	prompt "PTP Networking Protocol used by PTP Stack"
+	default PTP_UDP_IPv4_PROTOCOL
+
+	config PTP_UDP_IPv4_PROTOCOL
+		bool ""
+
+	config PTP_UDP_IPv6_PROTOCOL
+		bool ""
+
+	config PTP_IEEE_802_3_PROTOCOL
+		bool ""
+endchoice
+
+config PTP_NET_PROTOCOL
+	hex
+	default 0x01 if PTP_UDP_IPv4_PROTOCOL
+	default 0x02 if PTP_UDP_IPv6_PROTOCOL
+	default 0x03 if PTP_IEEE_802_3_PROTOCOL
+
+config CONFIG_PTP_NUM_PORTS
+	int "Number of PTP Ports"
+	default 1 if PTP_ORDINARY_CLOCK
+	default 2 if PTP_BOUNDARY_CLOCK || PTP_TRANSPARENT_P2P_CLOCK || PTP_TRANSPARENT_E2E_CLOCK
+	range 1 32 if PTP_ORDINARY_CLOCK
+	range 2 32 if PTP_BOUNDARY_CLOCK || PTP_TRANSPARENT_P2P_CLOCK || PTP_TRANSPARENT_E2E_CLOCK
+	help
+	  Configures the PTP stack to work with the given number of ports.
+	  The port concept is the same thing as network interface.
+
+choice
 	prompt "PTP Clock Accuracy"
 	default PTP_CLOCK_ACCURACY_UNKNOWN
 	help
@@ -187,5 +217,32 @@ config PTP_FOREIGN_MASTER_LIST_SIZE
 	int "Size of a foreignMasterList used in Best master clock algorithm"
 	default 5
 	range 5 32
+
+config PTP_ANNOUNCE_RECV_TIMEOUT
+	int "Number of announce intervals to wait"
+	default 3
+	help
+	  Defines the number of announce intervals to wait without receiving
+	  an Announce message before assuming that the master is no longer
+	  transmitting Announce messages.
+
+config PTP_DELAY_REQ_INTERVAL
+	int ""
+	default 0
+	help
+
+
+config PTP_SYNC_INTERVAL
+	int ""
+	default 0
+	help
+
+
+config PTP_PDALAY_REQ_INTERVAL
+	int "PDelay Req interval in nanoseconds"
+	default 0
+	help
+	  Defines the interval at which a PDalay Req message will be sent.
+
 
 endif # PTP

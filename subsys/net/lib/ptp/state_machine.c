@@ -6,6 +6,34 @@
 
 #include "state_machine.h"
 
+static const char * const state2str(enum ptp_port_state state)
+{
+	switch (state) {
+	case PTP_PS_INITIALIZING:
+		return "INITIALIZING";
+	case PTP_PS_FAULTY:
+		return "FAULTY";
+	case PTP_PS_DISABLED:
+		return "DISABLED";
+	case PTP_PS_LISTENING:
+		return "LISTENING";
+	case PTP_PS_PRE_MASTER:
+		return "PRE_MASTER";
+	case PTP_PS_MASTER:
+		return "MASTER";
+	case PTP_PS_GRAND_MASTER:
+		return "GRAND_MASTER";
+	case PTP_PS_PASSIVE:
+		return "PASSIVE";
+	case PTP_PS_UNCALIBRATED:
+		return "UNCALIBRATED";
+	case PTP_PS_SLAVE:
+		return "SLAVE";
+	}
+
+	return "<unknown>";
+}
+
 enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 				      enum ptp_port_event event,
 				      bool master_diff)

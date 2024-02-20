@@ -10,7 +10,7 @@
 #include "msg.h"
 
 static bool ptp_port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg);
-
+static void ptp_port_ds_init(struct ptp_port *port);
 
 static bool ptp_port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 {
@@ -21,16 +21,45 @@ static bool ptp_port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 	return false;
 }
 
-struct ptp_port * ptp_port_open(struct ptp_clock *clk)
+static void ptp_port_ds_init(struct ptp_port *port)
 {
-	struct ptp_port *p;
+	struct ptp_port_ds *ds = &port->dataset;
+	struct ptp_clock *clock = port->clock;
 
-	p->port_ds.version = PTP_VERSION;
-	p->port_ds.state = PTP_PS_INITIALIZING;
+	/* static */
+	memcpy(&ds->id.clk_id, &clock->default_ds.clk_id, sizeof(ptp_clk_id));
+	ds->id.port_number = clock->default_ds.n_ports;
 
+	/* dynamic */
+	ds->state = PTP_PS_INITIALIZING;
+	ds->log_min_delay_req_interval = CONFIG_PTP_DALAY_REQ_INTERVAL;
+	ds->announce_receipt_timeout = CONFIG_PTP_ANNOUNCE_RECV_TIMEOUT;
+	ds->log_sync_interval = CONFIG_PTP_SYNC_INTERVAL;
+	ds->delay_mechanism = ;
+	ds->log_min_pdelay_req_interval = CONFIG_PTP_PDALAY_REQ_INTERVAL;
+	ds->version = PTP_VERSION;
+	ds->delay_asymmetry = 0;
 
+	/* optional */
+}
 
-	return p;
+void ptp_port_open(struct net_if *iface, void *user_data)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)user_data;
+
+	if (clock->default_ds.n_ports > CONFIG_PTP_NUM_PORTS) {
+		return;
+	}
+
+	struct ptp_port *p = &clock->ports[clock->default_ds.n_ports];
+
+	p->clock = clock;
+
+	ptp_port_ds_init(p);
+
+	p->state_machine = clock->default_ds.slave_only ? ptp_so_state_machine : ptp_state_machine;
+
+	clock->default_ds.n_ports++;
 }
 
 enum ptp_port_state ptp_port_state(struct ptp_port *port)

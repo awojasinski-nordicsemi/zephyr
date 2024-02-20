@@ -38,9 +38,17 @@ struct ptp_port {
 };
 
 /**
+ * @brief Function initializing PTP Port.
+ *
+ * @param[in] iface Pointer to current network interface.
+ * @param[in] user_data Pointer to @ref ptp_clock structure.
+*/
+void ptp_port_open(struct net_if *iface, void *user_data);
+
+/**
  * @brief Function returning PTP Port's current state.
  *
- * @param[in] port A pointer to the PTP Port structure.
+ * @param[in] port Pointer to the PTP Port structure.
  *
  * @return Current state of the PTP Port.
  */
@@ -49,7 +57,7 @@ enum ptp_port_state ptp_port_state(struct ptp_port *port);
 /**
  * @brief Function chcecking whether PTP Port is enabled.
  *
- * @param[in] port A pointer to the PTP Port structure.
+ * @param[in] port Pointer to the PTP Port structure.
  *
  * @return True if PTP Port is enabled, False otherwise.
  */
@@ -77,7 +85,7 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port);
 /**
  * @brief Function handling PTP Port event.
  *
- * @param[in] port	  A pointer to the PTP Port structure.
+ * @param[in] port	  Pointer to the PTP Port structure.
  * @param[in] event	  PTP Port Event to be processed.
  * @param[in] master_diff Flag indicating whether PTP Master has changed.
  */
@@ -86,7 +94,7 @@ void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, boo
 /**
  * @brief Function updating PTP Port state based on given event.
  *
- * @param[in] port	  A pointer to the PTP Port structure.
+ * @param[in] port	  Pointer to the PTP Port structure.
  * @param[in] event	  PTP Port Event to be processed.
  * @param[in] master_diff Flag indicating whether PTP Master has changed.
  *

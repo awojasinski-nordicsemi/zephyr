@@ -11,4 +11,17 @@ zephyr_library_sources(
   ptp.c
   state_machine.c
   tc_clock.c
+  transport.c
+)
+
+zephyr_library_sources_ifdef(CONFIG_PTP_IEEE_802_3_PROTOCOL
+  transport_eth.c
+)
+
+zephyr_library_sources_ifdef(CONFIG_PTP_UDP_IPv4_PROTOCOL
+  transport_udp.c
+)
+
+zephyr_library_sources_ifdef(CONFIG_PTP_UDP_IPv6_PROTOCOL
+  transport_udp6.c
 )

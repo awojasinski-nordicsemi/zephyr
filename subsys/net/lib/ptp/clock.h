@@ -15,6 +15,7 @@
 #define ZEPHYR_INCLUDE_PTP_CLOCK_H_
 
 #include "ds.h"
+#include "port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,8 +33,7 @@ struct ptp_clock {
 	struct ptp_dataset	dataset;
 	bool			state_decision_event;
 	struct ptp_foreign_master_clock *best;
-	uint16_t		ports_count;
-	struct ptp_port		ports[];
+	struct ptp_port		ports[CONFIG_PTP_NUM_PORTS];
 };
 
 /**
@@ -61,7 +61,7 @@ enum ptp_clock_type {
 /**
  * @brief
  */
-struct ptp_clock *ptp_clock_create(enum ptp_clock_type type, struct ptp_config *config);
+struct ptp_clock *ptp_clock_init(enum ptp_clock_type type, struct ptp_config *config);
 
 #ifdef __cplusplus
 }

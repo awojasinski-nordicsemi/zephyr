@@ -96,7 +96,7 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 	}
 }
 
-struct ptp_clock *ptp_clock_create()
+struct ptp_clock *ptp_clock_init()
 {
 	struct ptp_clock *clk = &clock;
 	struct ptp_default_ds *dds = &clk->default_ds;
@@ -117,7 +117,7 @@ void ptp_clock_poll_events(struct ptp_clock *clock)
 	struct ptp_port *port;
 	enum ptp_port_event event;
 
-	for (int i = 0; i < clock->ports_count; i++) {
+	for (int i = 0; i < clock->default_ds.n_ports; i++) {
 		port = clock->ports[i];
 		event = ptp_port_event_gen(port);
 
