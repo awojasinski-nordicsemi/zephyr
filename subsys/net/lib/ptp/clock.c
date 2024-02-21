@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(ptp, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 
 #include "bmca.h"
 #include "clock.h"

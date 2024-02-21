@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(net_ptp_state_machine, CONFIG_PTP_LOG_LEVEL);
+
 #include "state_machine.h"
 
+#if CONFIG_NET_PTP_LOG_LEVEL >= LOG_LEVEL_DBG
 static const char * const state2str(enum ptp_port_state state)
 {
 	switch (state) {
@@ -33,6 +37,7 @@ static const char * const state2str(enum ptp_port_state state)
 
 	return "<unknown>";
 }
+#endif
 
 enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 				      enum ptp_port_event event,

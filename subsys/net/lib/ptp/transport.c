@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(net_ptp_transport, CONFIG_PTP_LOG_LEVEL);
+
 #include "transport.h"
 
 const struct ptp_transport_if iface = {
@@ -17,7 +20,7 @@ const struct ptp_transport_if iface = {
 	.physical_addr = ptp_transport_eth_physical_addr,
 #endif
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
-	.type  = PTP_NET_PROTOCOL_IEEE_802_3,
+	.type  = PTP_NET_PROTOCOL_UDP_IPv4,
 	.open = ptp_transport_udp_open,
 	.close = ptp_transport_udp_close,
 	.send = ptp_transport_udp_send,
@@ -26,7 +29,7 @@ const struct ptp_transport_if iface = {
 	.physical_addr = ptp_transport_udp_physical_addr,
 #endif
 #if CONFIG_PTP_UDP_IPv6_PROTOCOL
-	.type  = PTP_NET_PROTOCOL_IEEE_802_3,
+	.type  = PTP_NET_PROTOCOL_UDP_IPv6,
 	.open = ptp_transport_udp6_open,
 	.close = ptp_transport_udp6_close,
 	.send = ptp_transport_udp6_send,
@@ -36,32 +39,32 @@ const struct ptp_transport_if iface = {
 #endif
 };
 
-int ptp_transport_open()
+int ptp_transport_open(struct ptp_port *port)
 {
-	return iface.open();
+	return iface.open(port, );
 }
 
-int ptp_transport_close()
+int ptp_transport_close(struct ptp_port *port)
 {
-	return iface.close();
+	return iface.close(port);
 }
 
-int ptp_transport_send()
+int ptp_transport_send(struct ptp_port *port)
 {
-	return iface.send();
+	return iface.send(port, );
 }
 
-int ptp_transport_recv()
+int ptp_transport_recv(struct ptp_port *port)
 {
-	return iface.recv();
+	return iface.recv(port, );
 }
 
-int ptp_transport_protocol_addr()
+int ptp_transport_protocol_addr(struct ptp_port *port)
 {
-	return iface.protocol_addr();
+	return iface.protocol_addr(port, );
 }
 
-int ptp_transport_physical_addr()
+int ptp_transport_physical_addr(struct ptp_port *port)
 {
-	return iface.physical_addr();
+	return iface.physical_addr(port, );
 }

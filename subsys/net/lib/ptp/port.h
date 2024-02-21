@@ -16,8 +16,10 @@
 
 #include <zephyr/net/net_core.h>
 
+#include "ds.h"
 #include "msg.h"
 #include "state_machine.h"
+#include "transport.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,9 +29,10 @@ extern "C" {
  * @brief Structure describing PTP Port.
  */
 struct ptp_port {
-	struct ptp_clock	        *clock;
-	struct ptp_port_ds	        port_ds;
-	struct net_if		        *iface;
+	struct ptp_clock		*clock;
+	struct ptp_port_ds		port_ds;
+	struct net_if			*iface;
+	struct ptp_transport_if		transport;
 	enum ptp_port_state		(*state_machine)(struct ptp_port *port,
 							 enum ptp_port_event event,
 							 bool master_diff);

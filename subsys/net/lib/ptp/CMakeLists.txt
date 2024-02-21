@@ -15,7 +15,7 @@ zephyr_library_sources(
 )
 
 zephyr_library_sources_ifdef(CONFIG_PTP_IEEE_802_3_PROTOCOL
-  transport_eth.c
+  transport_raw.c
 )
 
 zephyr_library_sources_ifdef(CONFIG_PTP_UDP_IPv4_PROTOCOL

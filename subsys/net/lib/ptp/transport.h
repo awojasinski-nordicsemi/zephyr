@@ -6,11 +6,15 @@
 
 /**
  * @file transport.h
- * @brief Function and data structures used for state machine of the PTP.
+ * @brief Function implementing abstraction over networking protocols.
  */
 
 #ifndef ZEPHYR_INCLUDE_PTP_TRANSPORT_H_
 #define ZEPHYR_INCLUDE_PTP_TRANSPORT_H_
+
+#include <zephyr/net/socket.h>
+
+#include "port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,12 +34,13 @@ enum ptp_net_protocol {
  */
 struct ptp_transport_if {
 	enum ptp_net_protocol type;
-	int (*open)(void);
-	int (*close)(void);
-	int (*send)(void);
-	int (*recv)(void);
-	int (*protocol_addr)(void);
-	int (*physical_addr)(void);
+	int sock;
+	int (*open)(struct ptp_port *port);
+	int (*close)(struct ptp_port *port);
+	int (*send)(struct ptp_port *port);
+	int (*recv)(struct ptp_port *port);
+	int (*protocol_addr)(struct ptp_port *port);
+	int (*physical_addr)(struct ptp_port *port);
 };
 
 /**
@@ -45,7 +50,7 @@ struct ptp_transport_if {
  *
  * @return
  */
-int ptp_transport_open();
+int ptp_transport_open(struct ptp_port *port);
 
 /**
  * @brief Function for closing specified transport network connection.
@@ -54,7 +59,7 @@ int ptp_transport_open();
  *
  * @return
  */
-int ptp_transport_close();
+int ptp_transport_close(struct ptp_port *port);
 
 /**
  * @brief Function for sending PTP message using a specified transport.
@@ -63,7 +68,7 @@ int ptp_transport_close();
  *
  * @return
  */
-int ptp_transport_send();
+int ptp_transport_send(struct ptp_port *port);
 
 /**
  * @brief Function for receiving a PTP message using a specified transport.
@@ -72,7 +77,7 @@ int ptp_transport_send();
  *
  * @return
  */
-int ptp_transport_recv();
+int ptp_transport_recv(struct ptp_port *port);
 
 /**
  * @brief
@@ -81,7 +86,7 @@ int ptp_transport_recv();
  *
  * @return
  */
-int ptp_transport_protocol_addr();
+int ptp_transport_protocol_addr(struct ptp_port *port);
 
 /**
  * @brief
@@ -90,33 +95,35 @@ int ptp_transport_protocol_addr();
  *
  * @return
  */
-int ptp_transport_physical_addr();
+int ptp_transport_physical_addr(struct ptp_port *port);
+
+/* Transport specific function declarations */
 
 #if CONFIG_PTP_IEEE_802_3_PROTOCOL
-int ptp_transport_eth_open();
-int ptp_transport_eth_close();
-int ptp_transport_eth_send();
-int ptp_transport_eth_recv();
-int ptp_transport_eth_protocol_addr();
-int ptp_transport_eth_physical_addr();
+int ptp_transport_raw_open(struct ptp_port *port);
+int ptp_transport_raw_close(struct ptp_port *port);
+int ptp_transport_raw_send(struct ptp_port *port);
+int ptp_transport_raw_recv(struct ptp_port *port);
+int ptp_transport_raw_protocol_addr(struct ptp_port *port);
+int ptp_transport_raw_physical_addr(struct ptp_port *port);
 #endif
 
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
-int ptp_transport_udp_open();
-int ptp_transport_udp_close();
-int ptp_transport_udp_send();
-int ptp_transport_udp_recv();
-int ptp_transport_udp_protocol_addr();
-int ptp_transport_udp_physical_addr();
+int ptp_transport_udp_open(struct ptp_port *port);
+int ptp_transport_udp_close(struct ptp_port *port);
+int ptp_transport_udp_send(struct ptp_port *port);
+int ptp_transport_udp_recv(struct ptp_port *port);
+int ptp_transport_udp_protocol_addr(struct ptp_port *port);
+int ptp_transport_udp_physical_addr(struct ptp_port *port);
 #endif
 
 #if CONFIG_PTP_UDP_IPv6_PROTOCOL
-int ptp_transport_udp6_open();
-int ptp_transport_udp6_close();
-int ptp_transport_udp6_send();
-int ptp_transport_udp6_recv();
-int ptp_transport_udp6_protocol_addr();
-int ptp_transport_udp6_physical_addr();
+int ptp_transport_udp6_open(struct ptp_port *port);
+int ptp_transport_udp6_close(struct ptp_port *port);
+int ptp_transport_udp6_send(struct ptp_port *port);
+int ptp_transport_udp6_recv(struct ptp_port *port);
+int ptp_transport_udp6_protocol_addr(struct ptp_port *port);
+int ptp_transport_udp6_physical_addr(struct ptp_port *port);
 #endif
 
 #ifdef __cplusplus

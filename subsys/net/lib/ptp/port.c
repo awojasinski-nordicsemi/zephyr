@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
+
 #include <stdbool.h>
 
 #include "port.h"

@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(net_ptp_bmca, CONFIG_PTP_LOG_LEVEL);
+
 #include <string.h>
 
 #include "bmca.h"
