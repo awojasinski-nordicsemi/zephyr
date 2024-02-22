@@ -7,6 +7,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_transport_raw, CONFIG_PTP_LOG_LEVEL);
 
+#include <zephyr/net/socket.h>
+
 #include "transport.h"
 
 

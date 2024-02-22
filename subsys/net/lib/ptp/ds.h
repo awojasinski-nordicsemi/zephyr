@@ -40,7 +40,7 @@ struct ptp_default_ds {
 	bool		       enable;
 	bool		       external_port_conf_en;
 	uint8_t		       max_steps_rm;
-	enum ptp_clock_type    inst_type;
+	enum ptp_clock_type    type;
 };
 
 /**

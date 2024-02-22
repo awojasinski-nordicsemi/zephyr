@@ -7,40 +7,37 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 
+#include <zephyr/net/net_if.h>
+
+#include "net_private.h"
+
 #include "bmca.h"
 #include "clock.h"
 #include "port.h"
 
-static void ptp_clock_update_grandmaster(struct ptp_clock *clock);
-static void ptp_clock_update_slave(struct ptp_clock *clock);
-static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
+static int ptp_clock_generate_id(ptp_clk_id *clk_id, const struct ptp_port *port);
 
-static struct ptp_clock clock = {
-	.type = (enum ptp_clock_type)CONFIG_PTP_CLOCK_TYPE;
-	.default_ds = {
-		.n_ports = 0,
-		.domain = 0,
-		.clk_quality = {
-			.accuracy = CONFIG_PTP_CLOCK_ACCURACY,
-		},
-		.priority1 = CONFIG_PTP_PRIORITY1,
-		.priority2 = CONFIG_PTP_PRIORITY2,
-		.slave_only = CONFIG_PTP_SLAVE_ONLY,
-		.inst_type = CONFIG_PTP_CLOCK_TYPE,
-	},
-	.current_ds = {
+static struct ptp_clock clock = { 0 };
 
-	},
-	.parent_ds = {
+static int ptp_clock_generate_id(ptp_clk_id *clk_id, struct net_if *iface)
+{
+	struct net_linkaddr addr = net_if_get_link_addr(iface);
 
-	},
-	.time_prop_ds = {
-
+	if (addr) {
+		clk_id[0] = addr.addr[0];
+		clk_id[1] = addr.addr[1];
+		clk_id[2] = addr.addr[2];
+		clk_id[3] = 0xFF;
+		clk_id[4] = 0xFE;
+		clk_id[5] = addr.addr[3];
+		clk_id[6] = addr.addr[4];
+		clk_id[7] = addr.addr[5];
+		return 0;
 	}
-};
+	return -1;
+}
 
-/* 9.3.5 Table 30 - Updates for state decision code M1 and M2 */
-static void ptp_clock_update_grandmaster(struct ptp_clock *clock)
+void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 {
 	memset(&clock->current_ds, 0, sizeof(clock->current_ds));
 
@@ -51,11 +48,14 @@ static void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 	clock->parent_ds.gm_priority1 = clock->default_ds.priority1;
 	clock->parent_ds.gm_priority2 = clock->default_ds.priority2;
 
-	clock->time_prop_ds;
+	clock->time_prop_ds.current_utc_offset = ; //TODO
+	clock->time_prop_ds.time_src = clock->time_src;
+	clock->time_prop_ds.flags = ; //TODO
+
+	//TODO compare parent ds before and after if changed send notification to subscribers.
 }
 
-/* 9.3.5 Table 33 - Updates for state decision code S1 */
-static void ptp_clock_update_slave(struct ptp_clock *clock)
+void ptp_clock_update_slave(struct ptp_clock *clock)
 {
 	struct ptp_msg *best_msg = clock->best->recent_msg;
 
@@ -70,66 +70,46 @@ static void ptp_clock_update_slave(struct ptp_clock *clock)
 	clock->time_prop_ds.current_utc_offset = best_msg->announce.current_utc_offset;
 	clock->time_prop_ds.current_utc_offset_valid = ;
 	clock->time_prop_ds.time_src = best_msg->announce.time_src;
-
 }
 
-static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
+char *ptp_clock_sprint_clk_id()
 {
-	struct ptp_clk_id best_id;
-	struct ptp_port *port;
-
-	for (int inst = 0; inst < clock->default_ds.n_ports; inst++) {
-		enum ptp_port_state state;
-		enum ptp_port_event evt;
-
-		port = clock->port[inst];
-		state = ptp_bmca_state_decision(port);
-
-		switch (state)
-		{
-		case PTP_PS_GRAND_MASTER:
-			ptp_clock_update_grandmaster(clock);
-			break;
-		default:
-			break;
-		}
-	}
+	net_sprint_ll_addr_buf();
 }
 
 struct ptp_clock *ptp_clock_init()
 {
+	int ret;
 	struct ptp_clock *clk = &clock;
 	struct ptp_default_ds *dds = &clk->default_ds;
+	struct ptp_current_ds *cds = &clk->current_ds;
+	struct ptp_parent_ds *pds  = &clk->parent_ds;
 
-	/* Initialize default_ds */
-	if (dds->slave_only) {
-		dds->clk_quality.class = 255;
-	} else {
-		dds->clk_quality.class = 248;
+	clk->time_src = (enum ptp_time_src)PTP_TIME_SRC_INTERNAL_OSC;
+
+	/* Initialize Default Dataset. */
+	ret = ptp_clock_generate_id(&dds->clk_id,
+				    net_if_get_first_by_type(&NET_L2_GET_NAME(ETHERNET)));
+	if (ret) {
+		LOG_ERR("Couldn't assign Clock Identity");
+		return NULL;
 	}
-	dds->clk_quality.offset_scaled_log_variance = //TODO;
+
+	dds->type = (enum ptp_clock_type)CONFIG_PTP_CLOCK_TYPE;
+
+	dds->clk_quality.class = CONFIG_PTP_SLAVE_ONLY ? 255 : 248;
+	dds->clk_quality.accuracy = CONFIG_PTP_CLOCK_ACCURACY;
+	dds->clk_quality.offset_scaled_log_variance = ;//TODO
+
+	dds->max_steps_rm = ;//TODO
+
+	dds->priority1 = CONFIG_PTP_PRIORITY1;
+	dds->priority2 = CONFIG_PTP_PRIORITY2;
+
+	/* Initialize Parent Dataset. */
+	ptp_clock_update_grandmaster(clk);
+	pds->obsreved_parent_offset_scaled_log_variance = 0xFFFF;
+	pds->obsreved_parent_clk_phase_change_rate = 0x7FFFFFFF;
 
 	return clk;
-}
-
-void ptp_clock_poll_events(struct ptp_clock *clock)
-{
-	struct ptp_port *port;
-	enum ptp_port_event event;
-
-	for (int i = 0; i < clock->default_ds.n_ports; i++) {
-		port = clock->ports[i];
-		event = ptp_port_event_gen(port);
-
-		if (event == PTP_EVT_STATE_DECISION) {
-			clock->state_decision_event = true;
-		}
-
-		ptp_port_event_handle(port, event, false);
-	}
-
-	if (clock->state_decision_event) {
-		ptp_handle_state_decision_evt(clock);
-		clock->state_decision_event = false;
-	}
 }

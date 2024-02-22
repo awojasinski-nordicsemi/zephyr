@@ -42,8 +42,6 @@ static void ptp_port_ds_init(struct ptp_port *port)
 	ds->log_min_pdelay_req_interval = CONFIG_PTP_PDALAY_REQ_INTERVAL;
 	ds->version = PTP_VERSION;
 	ds->delay_asymmetry = 0;
-
-	/* optional */
 }
 
 void ptp_port_open(struct net_if *iface, void *user_data)

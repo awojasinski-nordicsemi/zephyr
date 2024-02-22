@@ -20,13 +20,78 @@ K_FIFO_DEFINE(ptp_rx_queue);
 
 static struct k_thread ptp_thread_data;
 
+static void ptp_handle_state_decision_evt(struct ptp_clock *clock);
+static void ptp_handle_critical_msg(void);
+static void ptp_handle_msg(void);
+static void ptp_poll_events();
+static void ptp_thread(void *p1, void *p2, void *p3);
+
+static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
+{
+	struct ptp_clk_id best_id;
+	struct ptp_port *port;
+
+	for (int inst = 0; inst < clock->default_ds.n_ports; inst++) {
+		enum ptp_port_state state;
+		enum ptp_port_event evt;
+
+		port = clock->port[inst];
+		state = ptp_bmca_state_decision(port);
+
+		switch (state)
+		{
+		case PTP_PS_GRAND_MASTER:
+			ptp_clock_update_grandmaster(clock);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+
+static void ptp_handle_critical_msg()
+{
+
+}
+
+static void ptp_handle_msg()
+{
+
+}
+
+static void ptp_poll_events(struct ptp_clock *clock)
+{
+	struct ptp_port *port;
+	enum ptp_port_event event;
+
+	for (int i = 0; i < clock->default_ds.n_ports; i++) {
+		port = clock->ports[i];
+		event = ptp_port_event_gen(port);
+
+		if (event == PTP_EVT_STATE_DECISION) {
+			clock->state_decision_event = true;
+		}
+
+		ptp_port_event_handle(port, event, false);
+	}
+
+	if (clock->state_decision_event) {
+		ptp_handle_state_decision_evt(clock);
+		clock->state_decision_event = false;
+	}
+}
+
 static void ptp_thread(void *p1, void *p2, void *p3)
 {
-	ARG_UNUSED(p1);
+	struct ptp_clock *clock = (struct ptp_clock *)p1;
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
 	while (1) {
+
+		ptp_clock_poll_events(clock);
+
 		struct net_pkt *pkt;
 
 		pkt = k_fifo_get(&ptp_rx_queue, K_MSEC(1));
@@ -46,6 +111,6 @@ void ptp_init(void)
 
 
 	tid = k_thread_create(&ptp_thread_data, ptp_stack, K_KERNEL_STACK_SIZEOF(ptp_stack),
-			      ptp_thread, NULL, NULL, NULL, K_PRIO_COOP(5), K_NO_WAIT);
+			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), K_NO_WAIT);
 	k_thread_name_set(&ptp_thread_data, "PTP");
 }

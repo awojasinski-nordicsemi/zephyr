@@ -25,7 +25,6 @@ extern "C" {
  * @brief PTP Clock structure.
  */
 struct ptp_clock {
-	enum ptp_clock_type	type;
 	struct ptp_default_ds	default_ds;
 	struct ptp_current_ds	current_ds;
 	struct ptp_parent_ds	parent_ds;
@@ -34,6 +33,7 @@ struct ptp_clock {
 	bool			state_decision_event;
 	struct ptp_foreign_master_clock *best;
 	struct ptp_port		ports[CONFIG_PTP_NUM_PORTS];
+	enum ptp_time_src	time_src;
 };
 
 /**
@@ -48,7 +48,7 @@ struct ptp_foreign_master_clock {
 };
 
 /**
- * @brief Types of PTP Clocks
+ * @brief Types of PTP Clocks.
  */
 enum ptp_clock_type {
 	PTP_CLOCK_TYPE_ORDINARY,
@@ -59,9 +59,50 @@ enum ptp_clock_type {
 };
 
 /**
+ * @brief PTP Clock time source.
+ */
+enum ptp_time_src {
+	PTP_TIME_SRC_ATOMIC_CLK = 0x10,
+	PTP_TIME_SRC_GNSS = 0x20,
+	PTP_TIME_SRC_TERRESTRIAL_RADIO = 0x30,
+	PTP_TIME_SRC_SERIAL_TIME_CODE = 0x39,
+	PTP_TIME_SRC_PTP = 0x40,
+	PTP_TIME_SRC_NTP = 0x50,
+	PTP_TIME_SRC_HAND_SET = 0x60,
+	PTP_TIME_SRC_OTHER = 0x90,
+	PTP_TIME_SRC_INTERNAL_OSC = 0xA0,
+};
+
+/**
+ * @brief Function returning @ref ptp_clock_id variable as a string.
+ *
+ * @return Pointer to the string.
+ */
+char *ptp_clock_sprint_clk_id();
+
+/**
+ * @brief Function updating Data Set storing Grandmaster information with the clock information.
+ *
+ * @note Based on Table 30 from section 9.3.5 of the IEEE 1588 - Updates for state decision
+ * code M1 and M2.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ */
+void ptp_clock_update_grandmaster(struct ptp_clock *clock);
+
+/**
+ * @brief
+ *
+ * @note Based on Table 33 from section 9.3.5 of the IEEE 1588 - Updates for state decision code S1.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ */
+void ptp_clock_update_slave(struct ptp_clock *clock);
+
+/**
  * @brief
  */
-struct ptp_clock *ptp_clock_init(enum ptp_clock_type type, struct ptp_config *config);
+struct ptp_clock *ptp_clock_init();
 
 #ifdef __cplusplus
 }

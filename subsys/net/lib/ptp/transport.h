@@ -12,8 +12,6 @@
 #ifndef ZEPHYR_INCLUDE_PTP_TRANSPORT_H_
 #define ZEPHYR_INCLUDE_PTP_TRANSPORT_H_
 
-#include <zephyr/net/socket.h>
-
 #include "port.h"
 
 #ifdef __cplusplus
@@ -46,7 +44,7 @@ struct ptp_transport_if {
 /**
  * @brief Function handling opening specified transport network connection.
  *
- * @param[in] x
+ * @param[in] port Pointer to the PTP Port structure
  *
  * @return
  */
@@ -55,7 +53,7 @@ int ptp_transport_open(struct ptp_port *port);
 /**
  * @brief Function for closing specified transport network connection.
  *
- * @param[in] x
+ * @param[in] port Pointer to the PTP Port structure
  *
  * @return
  */
@@ -64,7 +62,7 @@ int ptp_transport_close(struct ptp_port *port);
 /**
  * @brief Function for sending PTP message using a specified transport.
  *
- * @param[in] x
+ * @param[in] port Pointer to the PTP Port structure
  *
  * @return
  */
@@ -73,7 +71,7 @@ int ptp_transport_send(struct ptp_port *port);
 /**
  * @brief Function for receiving a PTP message using a specified transport.
  *
- * @param[in] x
+ * @param[in] port Pointer to the PTP Port structure
  *
  * @return
  */
@@ -82,7 +80,7 @@ int ptp_transport_recv(struct ptp_port *port);
 /**
  * @brief
  *
- * @param[in] x
+ * @param[in] port Pointer to the PTP Port structure
  *
  * @return
  */
@@ -91,7 +89,7 @@ int ptp_transport_protocol_addr(struct ptp_port *port);
 /**
  * @brief
  *
- * @param[in] x
+ * @param[in] port Pointer to the PTP Port structure
  *
  * @return
  */

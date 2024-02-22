@@ -7,10 +7,13 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_transport_udp, CONFIG_PTP_LOG_LEVEL);
 
+#include <zephyr/net/socket.h>
+
 #include "transport.h"
 
 int ptp_transport_udp_open(struct ptp_port *port, )
 {
+	const char *name;
 	int sock;
 
 	sock = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -18,6 +21,14 @@ int ptp_transport_udp_open(struct ptp_port *port, )
 		LOG_ERR("Failed to open socket on PTP Port %d", port->port_ds.id.port_number);
 		return -1;
 	}
+
+	if (zsock_setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, name, strlen(name))) {
+		LOG_ERR();
+		goto error;
+	}
+
+	SO_TIMESTAMPING
+
 
 	port->transport.sock = sock;
 
