@@ -1,5 +1,6 @@
 menuconfig PTP
 	bool "IEEE 1588 (PTP) support [EXPERIMENTAL]"
+	depends on PTP_CLOCK
 	select EXPERIMENTAL
 	select NET_SOCKETS_POSIX_NAMES
 	help

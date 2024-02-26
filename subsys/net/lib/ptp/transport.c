@@ -41,7 +41,14 @@ const struct ptp_transport_if iface = {
 
 int ptp_transport_open(struct ptp_port *port)
 {
-	return iface.open(port, );
+	int socket = iface.open(port, 0);
+
+	if (socket < 0) {
+		return -1;
+	}
+
+	port->transport.sock = socket;
+	return 0;
 }
 
 int ptp_transport_close(struct ptp_port *port)
@@ -49,9 +56,23 @@ int ptp_transport_close(struct ptp_port *port)
 	return iface.close(port);
 }
 
-int ptp_transport_send(struct ptp_port *port)
+int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg)
 {
-	return iface.send(port, );
+	int length = ntohs(msg->header.msg_length);
+
+	return iface.send(port, msg, len, NULL);
+}
+
+int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg)
+{
+	int length = ntohs(msg->header.msg_length);
+
+	return iface.send(port, msg, len, msg->addr);
+}
+
+int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg)
+{
+
 }
 
 int ptp_transport_recv(struct ptp_port *port)
@@ -67,4 +88,9 @@ int ptp_transport_protocol_addr(struct ptp_port *port)
 int ptp_transport_physical_addr(struct ptp_port *port)
 {
 	return iface.physical_addr(port, );
+}
+
+int ptp_transport_create(struct ptp_port *port)
+{
+	port->transport = iface;
 }

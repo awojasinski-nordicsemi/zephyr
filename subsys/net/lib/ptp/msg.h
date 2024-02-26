@@ -198,6 +198,8 @@ struct ptp_msg {
 		struct ptp_timestamp protocol;
 		struct ptp_timestamp host;
 	} timestamp;
+
+	struct sockaddr addr;
 };
 
 /**

@@ -63,6 +63,13 @@ void ptp_port_open(struct net_if *iface, void *user_data)
 	clock->default_ds.n_ports++;
 }
 
+void ptp_port_disable(struct ptp_port *port)
+{
+	port->best = NULL;
+
+	ptp_transport_close(port);
+}
+
 enum ptp_port_state ptp_port_state(struct ptp_port *port)
 {
 	return port->port_ds.state;

@@ -25,6 +25,7 @@ extern "C" {
  * @brief PTP Clock structure.
  */
 struct ptp_clock {
+	struct device		*ptp_clock;
 	struct ptp_default_ds	default_ds;
 	struct ptp_current_ds	current_ds;
 	struct ptp_parent_ds	parent_ds;

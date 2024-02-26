@@ -12,6 +12,9 @@
 #ifndef ZEPHYR_INCLUDE_PTP_TRANSPORT_H_
 #define ZEPHYR_INCLUDE_PTP_TRANSPORT_H_
 
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/ethernet.h>
+
 #include "port.h"
 
 #ifdef __cplusplus
@@ -33,6 +36,8 @@ enum ptp_net_protocol {
 struct ptp_transport_if {
 	enum ptp_net_protocol type;
 	int sock;
+	struct sockaddr addr;
+	struct net_eth_addr mac;
 	int (*open)(struct ptp_port *port);
 	int (*close)(struct ptp_port *port);
 	int (*send)(struct ptp_port *port);
@@ -60,13 +65,41 @@ int ptp_transport_open(struct ptp_port *port);
 int ptp_transport_close(struct ptp_port *port);
 
 /**
- * @brief Function for sending PTP message using a specified transport.
+ * @brief Function for sending PTP message using a specified transport. The message is sent
+ * to the default multicast address.
+ *
+ * @note Address specified in the message is ignored.
  *
  * @param[in] port Pointer to the PTP Port structure
+ * @param[in] msg  Pointer to the messge to be send.
  *
  * @return
  */
-int ptp_transport_send(struct ptp_port *port);
+int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg);
+
+/**
+ * @brief Function for sending PTP message using a specified transport. The message is sent
+ * to the address provided with @ref ptp_msg message structure.
+ *
+ * @param[in] port Pointer to the PTP Port structure
+ * @param[in] msg  Pointer to the messge to be send.
+ *
+ * @return
+ */
+int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg);
+
+/**
+ * @brief Function for sending PTP message using a specified transport. The message is sent
+ * to the address used for p2p delay measurement.
+ *
+ * @note Address specified in the message is ignored.
+ *
+ * @param[in] port Pointer to the PTP Port structure
+ * @param[in] msg  Pointer to the messge to be send.
+ *
+ * @return
+ */
+int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg);
 
 /**
  * @brief Function for receiving a PTP message using a specified transport.
@@ -75,10 +108,10 @@ int ptp_transport_send(struct ptp_port *port);
  *
  * @return
  */
-int ptp_transport_recv(struct ptp_port *port);
+int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg);
 
 /**
- * @brief
+ * @brief Function for getting transport's protocol address.
  *
  * @param[in] port Pointer to the PTP Port structure
  *
@@ -87,7 +120,7 @@ int ptp_transport_recv(struct ptp_port *port);
 int ptp_transport_protocol_addr(struct ptp_port *port);
 
 /**
- * @brief
+ * @brief Function for getting transport's physical address.
  *
  * @param[in] port Pointer to the PTP Port structure
  *

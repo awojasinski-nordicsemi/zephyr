@@ -7,6 +7,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 
+#include <zephyr/net/ethernet.h>
 #include <zephyr/net/net_if.h>
 
 #include "net_private.h"
@@ -110,6 +111,8 @@ struct ptp_clock *ptp_clock_init()
 	ptp_clock_update_grandmaster(clk);
 	pds->obsreved_parent_offset_scaled_log_variance = 0xFFFF;
 	pds->obsreved_parent_clk_phase_change_rate = 0x7FFFFFFF;
+
+	clk->ptp_clock = net_eth_get_ptp_clock(net_if_get_default());
 
 	return clk;
 }

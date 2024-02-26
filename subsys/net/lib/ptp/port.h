@@ -32,7 +32,7 @@ struct ptp_port {
 	struct ptp_clock		*clock;
 	struct ptp_port_ds		port_ds;
 	struct net_if			*iface;
-	struct ptp_transport_if		transport;
+	struct ptp_transport_if		*transport;
 	enum ptp_port_state		(*state_machine)(struct ptp_port *port,
 							 enum ptp_port_event event,
 							 bool master_diff);

@@ -8,30 +8,52 @@
 LOG_MODULE_REGISTER(net_ptp_transport_raw, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/net/socket.h>
+#include <zephyr/net/ethernet.h>
 
 #include "transport.h"
 
 
-int ptp_transport_raw_open(struct ptp_port *port, )
+int ptp_transport_raw_open(struct ptp_port *port, int socket_priority)
 {
-	int sock;
+	int socket, index;
+	struct sockaddr_ll addr;
 
-	sock = zsock_socket(PF_PACKET, SOCK_RAW, IPPROTO_RAW);
-	if(sock < 0) {
+	socket = zsock_socket(PF_PACKET, SOCK_RAW, IPPROTO_RAW);
+	if(socket < 0) {
 		LOG_ERR("Failed to open socket on PTP Port %d", port->port_ds.id.port_number);
 		return -1;
 	}
 
-	if (zsock_setsockopt(sock, )) {
+	index = net_if_get_by_iface(port->iface);
 
+	memset(&addr, 0, sizeof(addr));
+	addr.sll_ifindex = index;
+	addr.sll_family = AF_PACKET;
+	addr.sll_protocol = htons(ETH_P_ALL);
+
+	port->transport.addr = (struct sockaddr)addr;
+
+	if (zsock_bind(socket, (struct sockaddr *)&addr, sizeof(addr))) {
+		LOG_ERR("Faild to bind socket");
+		goto error;
 	}
 
-	port->transport.sock = sock;
+	if (zsock_setsockopt(socket, SOL_SOCKET, SO_BINDTODEVICE, name, strlen(name))) {
+		LOG_ERR("Failed to set socket binding to an interface");
+		goto error;
+	}
 
-	return 0;
+	if (socket_priority > 0 &&
+	    zsock_setsockopt(socket, SOL_SOCKET, SO_PRIORITY, &socket_priority,
+			     sizeof(socket_priority))) {
+		LOG_ERR("Failed to set socket priority");
+		goto error;
+	}
+
+	return socket;
 
 error:
-	zsock_close(sock);
+	zsock_close(socket);
 	return -1;
 }
 
