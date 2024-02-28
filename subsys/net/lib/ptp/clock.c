@@ -16,11 +16,9 @@ LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 #include "clock.h"
 #include "port.h"
 
-static int ptp_clock_generate_id(ptp_clk_id *clk_id, const struct ptp_port *port);
+static struct ptp_clock domain_clock = { 0 };
 
-static struct ptp_clock clock = { 0 };
-
-static int ptp_clock_generate_id(ptp_clk_id *clk_id, struct net_if *iface)
+static int clock_generate_id(ptp_clk_id *clk_id, struct net_if *iface)
 {
 	struct net_linkaddr addr = net_if_get_link_addr(iface);
 
@@ -73,30 +71,24 @@ void ptp_clock_update_slave(struct ptp_clock *clock)
 	clock->time_prop_ds.time_src = best_msg->announce.time_src;
 }
 
-char *ptp_clock_sprint_clk_id()
+struct ptp_clock *ptp_clock_init(void)
 {
-	net_sprint_ll_addr_buf();
-}
+	struct ptp_clock *clock = &domain_clock;
+	struct ptp_default_ds *dds = &clock->default_ds;
+	struct ptp_parent_ds *pds  = &clock->parent_ds;
+	struct net_if *iface = net_if_get_first_by_type(&NET_L2_GET_NAME(ETHERNET));
 
-struct ptp_clock *ptp_clock_init()
-{
-	int ret;
-	struct ptp_clock *clk = &clock;
-	struct ptp_default_ds *dds = &clk->default_ds;
-	struct ptp_current_ds *cds = &clk->current_ds;
-	struct ptp_parent_ds *pds  = &clk->parent_ds;
-
-	clk->time_src = (enum ptp_time_src)PTP_TIME_SRC_INTERNAL_OSC;
+	clock->time_src = (enum ptp_time_src)PTP_TIME_SRC_INTERNAL_OSC;
 
 	/* Initialize Default Dataset. */
-	ret = ptp_clock_generate_id(&dds->clk_id,
-				    net_if_get_first_by_type(&NET_L2_GET_NAME(ETHERNET)));
+	int ret = clock_generate_id(&dds->clk_id, iface);
 	if (ret) {
-		LOG_ERR("Couldn't assign Clock Identity");
+		LOG_ERR("Couldn't assign Clock Identity.");
 		return NULL;
 	}
 
 	dds->type = (enum ptp_clock_type)CONFIG_PTP_CLOCK_TYPE;
+	dds->n_ports = 0;
 
 	dds->clk_quality.class = CONFIG_PTP_SLAVE_ONLY ? 255 : 248;
 	dds->clk_quality.accuracy = CONFIG_PTP_CLOCK_ACCURACY;
@@ -108,11 +100,18 @@ struct ptp_clock *ptp_clock_init()
 	dds->priority2 = CONFIG_PTP_PRIORITY2;
 
 	/* Initialize Parent Dataset. */
-	ptp_clock_update_grandmaster(clk);
+	ptp_clock_update_grandmaster(clock);
 	pds->obsreved_parent_offset_scaled_log_variance = 0xFFFF;
 	pds->obsreved_parent_clk_phase_change_rate = 0x7FFFFFFF;
 
-	clk->ptp_clock = net_eth_get_ptp_clock(net_if_get_default());
+	clock->phc = net_eth_get_ptp_clock(iface);
+	if (!clock->phc) {
+		LOG_ERR("Couldn't get PTP Clock for the interface.");
+		return NULL;
+	}
 
-	return clk;
+	sys_slist_init(clock->subs_list);
+	sys_slist_init(clock->ports_list);
+
+	return clock;
 }

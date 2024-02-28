@@ -29,15 +29,18 @@ extern "C" {
  * @brief Structure describing PTP Port.
  */
 struct ptp_port {
+	/* object list */
+	sys_snode_t			node;
+
 	struct ptp_clock		*clock;
 	struct ptp_port_ds		port_ds;
 	struct net_if			*iface;
-	struct ptp_transport_if		*transport;
+	int				socket;
 	enum ptp_port_state		(*state_machine)(struct ptp_port *port,
 							 enum ptp_port_event event,
 							 bool master_diff);
 	struct ptp_foreign_master_clock *best;
-	struct ptp_foreign_master_clock foreigns[CONFIG_PTP_FOREIGN_MASTER_LIST_SIZE];
+	sys_slist_t			foreign_list;
 };
 
 /**

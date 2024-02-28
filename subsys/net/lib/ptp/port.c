@@ -12,10 +12,7 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 #include "port.h"
 #include "msg.h"
 
-static bool ptp_port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg);
-static void ptp_port_ds_init(struct ptp_port *port);
-
-static bool ptp_port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
+static bool port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 {
 	if (ptp_port_id_eq(msg->header.src_port_id, port->port_ds.id)) {
 		return true;
@@ -24,7 +21,7 @@ static bool ptp_port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 	return false;
 }
 
-static void ptp_port_ds_init(struct ptp_port *port)
+static void port_ds_init(struct ptp_port *port)
 {
 	struct ptp_port_ds *ds = &port->dataset;
 	struct ptp_clock *clock = port->clock;
@@ -38,27 +35,53 @@ static void ptp_port_ds_init(struct ptp_port *port)
 	ds->log_min_delay_req_interval = CONFIG_PTP_DALAY_REQ_INTERVAL;
 	ds->announce_receipt_timeout = CONFIG_PTP_ANNOUNCE_RECV_TIMEOUT;
 	ds->log_sync_interval = CONFIG_PTP_SYNC_INTERVAL;
-	ds->delay_mechanism = ;
+	ds->delay_mechanism = (enum ptp_delay_mechanism)CONFIG_PTP_DELAY_MECHANISM;
 	ds->log_min_pdelay_req_interval = CONFIG_PTP_PDALAY_REQ_INTERVAL;
 	ds->version = PTP_VERSION;
 	ds->delay_asymmetry = 0;
+}
+
+static int port_initialize(struct ptp_port *port)
+{
+	ptp_transport_open(port);
 }
 
 void ptp_port_open(struct net_if *iface, void *user_data)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)user_data;
 
-	if (clock->default_ds.n_ports > CONFIG_PTP_NUM_PORTS) {
+	if (net_if_l2(iface) != &NET_L2_GET_NAME(ETHERNET)) {
 		return;
 	}
 
-	struct ptp_port *p = &clock->ports[clock->default_ds.n_ports];
+	if (clock->default_ds.n_ports > CONFIG_PTP_NUM_PORTS) {
+		LOG_WARN("Exceeded number of PTP Ports.");
+		return;
+	}
 
-	p->clock = clock;
+	struct ptp_port *port = (struct ptp_port *)k_malloc(sizeof(*port));
 
-	ptp_port_ds_init(p);
+	if (!port) {
+		LOG_ERR("Couldn't open the PTP Port.");
+		return;
+	}
 
-	p->state_machine = clock->default_ds.slave_only ? ptp_so_state_machine : ptp_state_machine;
+	port->clock = clock;
+	port->iface = iface;
+	port->best = NULL;
+	port->socket = -1;
+
+	port_ds_init(p);
+
+	port->state_machine = clock->default_ds.slave_only ?
+		ptp_so_state_machine : ptp_state_machine;
+
+	sys_slist_init(port->foreign_list);
+	sys_slist_append(&clock->ports_list, &port->node);
+
+	// setup timers?
+
+	// Add socket to
 
 	clock->default_ds.n_ports++;
 }
@@ -96,7 +119,7 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 	enum ptp_port_event event;
 	struct ptp_msg *msg;
 
-	if (ptp_port_ignore_msg(port, msg)) {
+	if (port_ignore_msg(port, msg)) {
 		return PTP_EVT_NONE;
 	}
 

@@ -47,7 +47,7 @@ int ptp_transport_open(struct ptp_port *port)
 		return -1;
 	}
 
-	port->transport.sock = socket;
+	port->socket = socket;
 	return 0;
 }
 

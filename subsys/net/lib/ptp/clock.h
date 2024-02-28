@@ -25,27 +25,29 @@ extern "C" {
  * @brief PTP Clock structure.
  */
 struct ptp_clock {
-	struct device		*ptp_clock;
-	struct ptp_default_ds	default_ds;
-	struct ptp_current_ds	current_ds;
-	struct ptp_parent_ds	parent_ds;
-	struct ptp_time_prop_ds time_prop_ds;
-	struct ptp_dataset	dataset;
-	bool			state_decision_event;
+	struct device			*phc;
+	struct ptp_default_ds		default_ds;
+	struct ptp_current_ds		current_ds;
+	struct ptp_parent_ds		parent_ds;
+	struct ptp_time_prop_ds		time_prop_ds;
+	struct ptp_dataset		dataset;
+	bool				state_decision_event;
 	struct ptp_foreign_master_clock *best;
-	struct ptp_port		ports[CONFIG_PTP_NUM_PORTS];
-	enum ptp_time_src	time_src;
+	sys_slist_t			subs_list;
+	sys_slist_t			ports_list;
+	enum ptp_time_src		time_src;
 };
 
 /**
  * @brief
  */
 struct ptp_foreign_master_clock {
-	struct ptp_port_id      port_id;
-	uint16_t	        messages_count;
+	sys_snode_t		node;
+	struct ptp_port_id	port_id;
+	uint16_t		messages_count;
 	struct ptp_announce_msg recent_msg;
-	struct ptp_dataset      dataset;
-	struct ptp_port         *port;
+	struct ptp_dataset	dataset;
+	struct ptp_port		*port;
 };
 
 /**

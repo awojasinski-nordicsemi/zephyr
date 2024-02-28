@@ -35,9 +35,6 @@ enum ptp_net_protocol {
  */
 struct ptp_transport_if {
 	enum ptp_net_protocol type;
-	int sock;
-	struct sockaddr addr;
-	struct net_eth_addr mac;
 	int (*open)(struct ptp_port *port);
 	int (*close)(struct ptp_port *port);
 	int (*send)(struct ptp_port *port);

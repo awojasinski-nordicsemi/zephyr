@@ -106,9 +106,16 @@ void ptp_init(void)
 {
 	k_tid_t tid;
 	struct ptp_clock *clock = ptp_clock_init();
+	struct ptp_port *port;
+
+	if (!clock) {
+		return;
+	}
 
 	net_if_foreach(ptp_port_open, (void *)clock);
-
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		ptp_port_event_handle(port, PTP_EVT_INITIALIZE, false);
+	}
 
 	tid = k_thread_create(&ptp_thread_data, ptp_stack, K_KERNEL_STACK_SIZEOF(ptp_stack),
 			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), K_NO_WAIT);
