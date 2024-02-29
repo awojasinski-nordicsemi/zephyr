@@ -162,12 +162,11 @@ void ptp_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	}
 
 	ptp_port_send(port, resp);
-
 }
 
 void ptp_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
-	if
+
 }
 
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)
@@ -186,7 +185,8 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	case PTP_MSG_SYNC:
 		break;
 	case PTP_MSG_DELAY_REQ:
-		ptp_clock_get(clock->ptp_clock, &msg->timestamp.host);
+		struct net_ptp_time ts;
+		ptp_clock_get(clock->phc, &ts);
 		break;
 	case PTP_MSG_PDELAY_REQ:
 		break;
@@ -217,6 +217,8 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 		port_id_pre_send(&msg->management.target_port_id);
 		break;
 	}
+
+	return 0;
 }
 
 int ptp_mgs_post_recv(struct ptp_msg *msg, int cnt)

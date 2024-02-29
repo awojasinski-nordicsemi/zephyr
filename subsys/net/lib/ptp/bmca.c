@@ -81,7 +81,7 @@ int ptp_bmca_port_id_cmp(const struct ptp_port_id *p1, const struct ptp_port_id 
 	return diff;
 }
 
-int ptp_bmca_ds_cmp(struct ptp_dataset *a, struct ptp_dataset *b)
+int ptp_bmca_ds_cmp(const struct ptp_dataset *a, const struct ptp_dataset *b)
 {
 	if (a == b) {
 		return 0;
@@ -113,7 +113,7 @@ int ptp_bmca_ds_cmp(struct ptp_dataset *a, struct ptp_dataset *b)
 		return B_BETTER;
 	}
 
-	if (a->clk_quality..offset_scaled_log_var > b->clk_quality.offset_scaled_log_var) {
+	if (a->clk_quality.offset_scaled_log_variance > b->clk_quality.offset_scaled_log_variance) {
 		return B_BETTER;
 	}
 
@@ -130,13 +130,13 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 
 	clk_default = ptp_clock_default_ds(port->clock);
 	clk_best = ptp_clock_foreign_ds(port->clock);
-	port_best = &port->best->datase;
+	port_best = &port->best->dataset;
 
 	if (!port->foreign && ptp_port_state(port) == PTP_PS_LISTENING) {
-		return state;
+		return PTP_PS_LISTENING;
 	}
 
-	if (port->clock.clk_quality.class <= 127) {
+	if (clk_default->clk_quality.class <= 127) {
 		if (ptp_bmca_ds_cmp(clk_default, port_best) > 0) {
 			return PTP_PS_GRAND_MASTER;
 		} else {

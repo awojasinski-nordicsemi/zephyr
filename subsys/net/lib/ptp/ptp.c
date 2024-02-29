@@ -28,14 +28,13 @@ static void ptp_thread(void *p1, void *p2, void *p3);
 
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
-	struct ptp_clk_id best_id;
 	struct ptp_port *port;
+	ptp_clk_id best_id;
 
-	for (int inst = 0; inst < clock->default_ds.n_ports; inst++) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		enum ptp_port_state state;
-		enum ptp_port_event evt;
+		enum ptp_port_event   ;
 
-		port = clock->port[inst];
 		state = ptp_bmca_state_decision(port);
 
 		switch (state)
@@ -64,9 +63,16 @@ static void ptp_poll_events(struct ptp_clock *clock)
 {
 	struct ptp_port *port;
 	enum ptp_port_event event;
+	int cnt;
 
-	for (int i = 0; i < clock->default_ds.n_ports; i++) {
-		port = clock->ports[i];
+	ptp_clock_check_pollfd(clock);
+	cnt = zsock_poll(clock->pollfd, clock->default_ds.n_ports, 0);
+
+	if (!cnt) {
+		return;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		event = ptp_port_event_gen(port);
 
 		if (event == PTP_EVT_STATE_DECISION) {

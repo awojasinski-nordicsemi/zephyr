@@ -35,6 +35,8 @@ struct ptp_clock {
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			subs_list;
 	sys_slist_t			ports_list;
+	struct zsock_pollfd		*pollfd;
+	bool				pollfd_valid;
 	enum ptp_time_src		time_src;
 };
 
@@ -42,7 +44,7 @@ struct ptp_clock {
  * @brief
  */
 struct ptp_foreign_master_clock {
-	sys_snode_t		node;
+	sys_snode_t		node; /* object list */
 	struct ptp_port_id	port_id;
 	uint16_t		messages_count;
 	struct ptp_announce_msg recent_msg;
@@ -81,7 +83,32 @@ enum ptp_time_src {
  *
  * @return Pointer to the string.
  */
-char *ptp_clock_sprint_clk_id();
+char *ptp_clock_sprint_clk_id(struct ptp_clock *clock);
+
+/**
+ * @brief Function checking status of the file descriptors array. The array is updated
+ * if has obsolite data.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ */
+void ptp_clock_check_pollfd(struct ptp_clock *clock);
+
+/**
+ * @brief Function invalidating status of the file descriptors array.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ */
+void ptp_clock_pollfd_invalidate(struct ptp_clock *clock);
+
+/**
+ * @brief Function resizing file descriptors array holding all sockets related to PTP Ports.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] n_ports
+ *
+ * @return returns 0 if succesfull, negative otherwise.
+ */
+int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports);
 
 /**
  * @brief Function updating Data Set storing Grandmaster information with the clock information.

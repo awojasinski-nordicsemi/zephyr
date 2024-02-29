@@ -10,7 +10,7 @@ LOG_MODULE_REGISTER(net_ptp_state_machine, CONFIG_PTP_LOG_LEVEL);
 #include "state_machine.h"
 
 #if CONFIG_NET_PTP_LOG_LEVEL >= LOG_LEVEL_DBG
-static const char * const state2str(enum ptp_port_state state)
+const char * const ptp_state_machine_state_str(enum ptp_port_state state)
 {
 	switch (state) {
 	case PTP_PS_INITIALIZING:
@@ -37,6 +37,8 @@ static const char * const state2str(enum ptp_port_state state)
 
 	return "<unknown>";
 }
+#else
+#define ptp_state_str(enum ptp_port_state state) (NULL)
 #endif
 
 enum ptp_port_state ptp_state_machine(enum ptp_port_state state,

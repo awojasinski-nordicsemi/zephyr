@@ -15,6 +15,8 @@
 #define ZEPHYR_INCLUDE_PTP_DS_H_
 
 #include "ddt.h"
+#include "dm.h"
+#include "clock.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,12 +94,12 @@ struct ptp_time_prop_ds {
  * @note 8.2.5 - descriptionDS
  */
 struct ptp_desc_ds {
-	union manufacturer_id {
+	union {
 		struct {
 			uint8_t byte[3];
 		};
 		uint32_t id: 24;
-	};
+	} manufacturer_id;
 	struct ptp_text product_desc;
 	struct ptp_text product_rev;
 	struct ptp_text usr_desc;
@@ -109,7 +111,7 @@ struct ptp_desc_ds {
  */
 struct ptp_fault_log_ds {
 	uint16_t no_foult_records;
-	fault_record_list; /* single-linked list of struct ptp_fault_record */
+	void *fault_record_list; /* single-linked list of struct ptp_fault_record */
 	bool reset;
 };
 
@@ -131,7 +133,7 @@ struct ptp_path_trace_ds {
 /* optional alternate timescale offsets mechanism. */
 struct ptp_alt_timescale_offset_ds {
 	uint8_t max_key;
-	list; /* single-lindek list of ptp_alt_timescale entries */
+	void *list; /* single-lindek list of ptp_alt_timescale entries */
 };
 
 /* optional holdover upgrade mechanism */
@@ -151,13 +153,13 @@ struct ptp_gm_cluster_ds {
 struct ptp_acceptable_master_tab_ds {
 	uint16_t max_tab_size;
 	uint16_t tab_size;
-	list; /* list of ptp_acceptable_master elements */
+	void *list; /* list of ptp_acceptable_master elements */
 };
 
 /* optionl performance monitoring feature */
 struct ptp_perf_monitor_ds {
 	bool enable;
-	record_list /* 99 records of type ptp_clk_perf_monitor_record */
+	void *record_list; /* 99 records of type ptp_clk_perf_monitor_record */
 };
 
 /* optional enhanced synchronization accuracy metrics feature */
@@ -207,12 +209,12 @@ struct ptp_x_ds {
  * @note 8.2.18 - descriptionPortDS
  */
 struct ptp_dest_port_ds {
-	union profile_id {
+	union {
 		struct {
 			uint8_t byte[6];
 		};
 		uint64_t id: 48;
-	};
+	} profile_id;
 	struct ptp_port_addr protocol_addr;
 };
 

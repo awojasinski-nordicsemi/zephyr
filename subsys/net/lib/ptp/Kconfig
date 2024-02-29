@@ -1,8 +1,7 @@
 menuconfig PTP
 	bool "IEEE 1588 (PTP) support [EXPERIMENTAL]"
-	depends on PTP_CLOCK
 	select EXPERIMENTAL
-	select NET_L2_ETHERNET
+	depends on PTP_CLOCK && NET_L2_ETHERNET
 	help
 	  Enable PTP driver that send and receives PTP packets
 	  and handles network packet timestamps.
@@ -19,18 +18,19 @@ choice
 	prompt "PTP Clock Type"
 	default PTP_ORDINARY_CLOCK
 	help
+	  Specifies type of PTP Clock implemented on the target device
 
 	config PTP_ORDINARY_CLOCK
-		bool ""
+		bool "Ordinary Clock"
 
 	config PTP_BOUNDARY_CLOCK
-		bool ""
+		bool "Boundary Clock"
 
 	config PTP_TRANSPARENT_P2P_CLOCK
-		bool ""
+		bool "Transparent Peer-to-Peer Clock"
 
 	config PTP_TRANSPARENT_E2E_CLOCK
-		bool ""
+		bool "Transparent End-to-End Clock"
 endchoice
 
 config PTP_CLOCK_TYPE
@@ -231,14 +231,11 @@ config PTP_ANNOUNCE_RECV_TIMEOUT
 config PTP_DELAY_REQ_INTERVAL
 	int ""
 	default 0
-	help
 
 
 config PTP_SYNC_INTERVAL
 	int ""
 	default 0
-	help
-
 
 config PTP_PDALAY_REQ_INTERVAL
 	int "PDelay Req interval in nanoseconds"

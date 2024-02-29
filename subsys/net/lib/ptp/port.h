@@ -14,12 +14,12 @@
 #ifndef ZEPHYR_INCLUDE_PTP_PORT_H_
 #define ZEPHYR_INCLUDE_PTP_PORT_H_
 
+#include <zephyr/kernel.h>
 #include <zephyr/net/net_core.h>
 
 #include "ds.h"
 #include "msg.h"
 #include "state_machine.h"
-#include "transport.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,14 +29,28 @@ extern "C" {
  * @brief Structure describing PTP Port.
  */
 struct ptp_port {
-	/* object list */
-	sys_snode_t			node;
-
+	sys_snode_t			node; /* object list */
 	struct ptp_clock		*clock;
 	struct ptp_port_ds		port_ds;
 	struct net_if			*iface;
 	int				socket;
-	enum ptp_port_state		(*state_machine)(struct ptp_port *port,
+	struct k_timer			announce_timer;
+	struct k_timer			delay_timer;
+	struct k_timer			sync_rx_timer;
+	struct k_timer			sync_tx_timer;
+	struct k_timer			qualification_timer;
+	bool				announce_t_expierd;
+	bool				delay_t_expierd;
+	bool				sync_rx_t_expierd;
+	bool				sync_tx_t_expierd;
+	bool				qualification_t_expierd;
+	struct {
+		uint16_t		announce;
+		uint16_t		delay;
+		uint16_t		signaling;
+		uint16_t		sync;
+	}				seq_id;
+	enum ptp_port_state		(*state_machine)(enum ptp_port_state state,
 							 enum ptp_port_event event,
 							 bool master_diff);
 	struct ptp_foreign_master_clock *best;

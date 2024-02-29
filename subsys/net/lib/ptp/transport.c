@@ -53,7 +53,12 @@ int ptp_transport_open(struct ptp_port *port)
 
 int ptp_transport_close(struct ptp_port *port)
 {
-	return iface.close(port);
+	if (iface.close(port)) {
+		return -1;
+	}
+
+	port->socket = -1;
+	return 0;
 }
 
 int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg)

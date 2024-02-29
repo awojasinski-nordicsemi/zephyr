@@ -7,8 +7,11 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 
+#include <stdlib.h>
+
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/socket.h>
 
 #include "net_private.h"
 
@@ -36,6 +39,49 @@ static int clock_generate_id(ptp_clk_id *clk_id, struct net_if *iface)
 	return -1;
 }
 
+static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
+{
+	dest->fd = port->socket;
+	dest->events = ZSOCK_POLLIN | ZSOCK_POLLPRI;
+
+	return 1;
+}
+
+void ptp_clock_check_pollfd(struct ptp_clock *clock)
+{
+	struct ptp_port *port;
+	struct zsock_pollfd *fd = clock->pollfd;
+
+	if (clock->pollfd_valid) {
+		return;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		fd += clock_update_pollfd(fd, port);
+	}
+
+	clock->pollfd_valid = true;
+}
+
+void ptp_clock_pollfd_invalidate(struct ptp_clock *clock)
+{
+	clock->pollfd_valid = false;
+}
+
+int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports)
+{
+	struct zsock_pollfd *new_pollfd;
+
+	new_pollfd = realloc(clock->pollfd, n_ports, sizeof(*clock->pollfd));
+
+	if (!new_pollfd) {
+		return -1;
+	}
+
+	clock->pollfd = new_pollfd;
+	return 0;
+}
+
 void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 {
 	memset(&clock->current_ds, 0, sizeof(clock->current_ds));
@@ -47,9 +93,9 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 	clock->parent_ds.gm_priority1 = clock->default_ds.priority1;
 	clock->parent_ds.gm_priority2 = clock->default_ds.priority2;
 
-	clock->time_prop_ds.current_utc_offset = ; //TODO
+	clock->time_prop_ds.current_utc_offset = 0; //TODO
 	clock->time_prop_ds.time_src = clock->time_src;
-	clock->time_prop_ds.flags = ; //TODO
+	clock->time_prop_ds.flags = 0; //TODO
 
 	//TODO compare parent ds before and after if changed send notification to subscribers.
 }
@@ -67,7 +113,7 @@ void ptp_clock_update_slave(struct ptp_clock *clock)
 	clock->parent_ds.gm_priority2 = best_msg->announce.gm_priority2;
 
 	clock->time_prop_ds.current_utc_offset = best_msg->announce.current_utc_offset;
-	clock->time_prop_ds.current_utc_offset_valid = ;
+	clock->time_prop_ds.current_utc_offset_valid = 0; //TODO
 	clock->time_prop_ds.time_src = best_msg->announce.time_src;
 }
 
@@ -92,9 +138,9 @@ struct ptp_clock *ptp_clock_init(void)
 
 	dds->clk_quality.class = CONFIG_PTP_SLAVE_ONLY ? 255 : 248;
 	dds->clk_quality.accuracy = CONFIG_PTP_CLOCK_ACCURACY;
-	dds->clk_quality.offset_scaled_log_variance = ;//TODO
+	dds->clk_quality.offset_scaled_log_variance = 0;//TODO
 
-	dds->max_steps_rm = ;//TODO
+	dds->max_steps_rm = 0;//TODO
 
 	dds->priority1 = CONFIG_PTP_PRIORITY1;
 	dds->priority2 = CONFIG_PTP_PRIORITY2;
@@ -110,8 +156,8 @@ struct ptp_clock *ptp_clock_init(void)
 		return NULL;
 	}
 
-	sys_slist_init(clock->subs_list);
-	sys_slist_init(clock->ports_list);
+	sys_slist_init(&clock->subs_list);
+	sys_slist_init(&clock->ports_list);
 
 	return clock;
 }

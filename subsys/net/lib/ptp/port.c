@@ -23,7 +23,7 @@ static bool port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 
 static void port_ds_init(struct ptp_port *port)
 {
-	struct ptp_port_ds *ds = &port->dataset;
+	struct ptp_port_ds *ds = &port->port_ds;
 	struct ptp_clock *clock = port->clock;
 
 	/* static */
@@ -43,7 +43,203 @@ static void port_ds_init(struct ptp_port *port)
 
 static int port_initialize(struct ptp_port *port)
 {
-	ptp_transport_open(port);
+	if (ptp_transport_open(port)) {
+		LOG_ERR("Couldn't open socket.");
+		return -1;
+	}
+
+	ptp_clock_pollfd_invalidate(port->clock);
+	return 0;
+}
+
+static void port_disable(struct ptp_port *port)
+{
+	ptp_transport_close(port);
+	ptp_port_free_foreign_masters(port);
+
+	port->best = NULL;
+	port->socket = -1;
+	ptp_clock_pollfd_invalidate(port->clock);
+}
+
+static void port_timer_init(struct k_timer *timer, k_timer_expiry_t timeout_fn, void *user_data)
+{
+	k_timer_init(timer, timeout_fn, NULL);
+	k_timer_user_data_set(timer, user_data);
+}
+
+static void port_set_announce_timeout(struct ptp_port *port)
+{
+
+}
+
+static void port_set_delay_timeout(struct ptp_port *port)
+{
+
+}
+
+static void port_set_sync_rx_timeout(struct ptp_port *port)
+{
+
+}
+
+static void port_set_sync_tx_timeout(struct ptp_port *port)
+{
+
+}
+
+static void port_set_qualification_timeout(struct ptp_port *port)
+{
+
+}
+
+static void port_announce_timer_to(struct k_timer *timer)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		if (timer == &port->announce_timer) {
+			port->announce_t_expired = true;
+		}
+	}
+}
+
+static void port_delay_timer_to(struct k_timer *timer)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		if (timer == &port->delay_timer) {
+			port->delay_t_expired = true;
+		}
+	}
+}
+
+static void port_sync_rx_timer_to(struct k_timer *timer)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		if (timer == &port->sync_rx_timer) {
+			port->sync_rx_t_expired = true;
+		}
+	}
+}
+
+static void port_sync_tx_timer_to(struct k_timer *timer)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		if (timer == &port->sync_tx_timer) {
+			port->sync_tx_t_expired = true;
+		}
+	}
+}
+
+static void port_qualification_timer_to(struct k_timer *timer)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		if (timer == &port->announce_timer) {
+			port->announce_t_expired = true;
+		}
+	}
+}
+
+static void port_p2p_transition(struct ptp_port *port, enum ptp_port_state next_state)
+{
+	k_timer_stop(&port->delay_timer);
+	k_timer_stop(&port->announce_timer);
+	k_timer_stop(&port->sync_rx_timer);
+	k_timer_stop(&port->sync_tx_timer);
+	k_timer_stop(&port->qualification_timer);
+
+	switch (next_state) {
+	case PTP_PS_INITIALIZING:
+		break;
+	case PTP_PS_FAULTY:
+	case PTP_PS_DISABLED:
+		port_disable(port);
+		break;
+	case PTP_PS_LISTENING:
+		port_set_announce_timeout(port);
+		port_set_delay_timeout(port);
+		break;
+	case PTP_PS_PRE_MASTER:
+		port_set_qualification_timeout(port);
+		break;
+	case PTP_PS_GRAND_MASTER:
+	case PTP_PS_MASTER:
+		if (!p->inhibit_announce) {
+			set_tmo_log(p->fda.fd[FD_MANNO_TIMER], 1, -10); /*~1ms*/
+		}
+		port_set_sync_tx_timeout(port);
+		break;
+	case PTP_PS_PASSIVE:
+		port_set_announce_timeout(port);
+		break;
+	case PTP_PS_UNCALIBRATED:
+		flush_last_sync(p);
+		flush_peer_delay(p);
+		/* fall through */
+	case PTP_PS_SLAVE:
+		port_set_announce_timeout(port);
+		break;
+	};
+}
+
+static void port_e2e_transition(struct ptp_port *port, enum ptp_port_state next_state)
+{
+	k_timer_stop(&port->delay_timer);
+	k_timer_stop(&port->announce_timer);
+	k_timer_stop(&port->sync_rx_timer);
+	k_timer_stop(&port->sync_tx_timer);
+	k_timer_stop(&port->qualification_timer);
+
+	switch (next_state) {
+	case PTP_PS_INITIALIZING:
+		break;
+	case PTP_PS_FAULTY:
+	case PTP_PS_DISABLED:
+		port_disable(port);
+		break;
+	case PTP_PS_LISTENING:
+		port_set_announce_timeout(port);
+		port_set_delay_timeout(port);
+		break;
+	case PTP_PS_PRE_MASTER:
+		port_set_qualification_timeout(port);
+		break;
+	case PTP_PS_GRAND_MASTER:
+	case PTP_PS_MASTER:
+		if (!p->inhibit_announce) {
+			set_tmo_log(p->fda.fd[FD_MANNO_TIMER], 1, -10); /*~1ms*/
+		}
+		port_set_sync_tx_timeout(port);
+		break;
+	case PTP_PS_PASSIVE:
+		port_set_announce_timeout(port);
+		break;
+	case PTP_PS_UNCALIBRATED:
+		flush_last_sync(p);
+		flush_peer_delay(p);
+		/* fall through */
+	case PTP_PS_SLAVE:
+		port_set_announce_timeout(port);
+		break;
+	};
+}
+
+static void port_pdelay_timer_to(struct k_timer *timer)
+{
+	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
 }
 
 void ptp_port_open(struct net_if *iface, void *user_data)
@@ -55,7 +251,7 @@ void ptp_port_open(struct net_if *iface, void *user_data)
 	}
 
 	if (clock->default_ds.n_ports > CONFIG_PTP_NUM_PORTS) {
-		LOG_WARN("Exceeded number of PTP Ports.");
+		LOG_WRN("Exceeded number of PTP Ports.");
 		return;
 	}
 
@@ -71,26 +267,41 @@ void ptp_port_open(struct net_if *iface, void *user_data)
 	port->best = NULL;
 	port->socket = -1;
 
-	port_ds_init(p);
-
 	port->state_machine = clock->default_ds.slave_only ?
 		ptp_so_state_machine : ptp_state_machine;
 
-	sys_slist_init(port->foreign_list);
-	sys_slist_append(&clock->ports_list, &port->node);
+	port_ds_init(port);
+	sys_slist_init(&port->foreign_list);
 
-	// setup timers?
-
-	// Add socket to
+	port_timer_init(&port->delay_timer, port_delay_timer_to, user_data);
+	port_timer_init(&port->announce_timer, port_announce_timer_to, user_data);
+	port_timer_init(&port->sync_rx_timer, port_sync_rx_timer_to, user_data);
+	port_timer_init(&port->sync_tx_timer, port_sync_tx_timer_to, user_data);
+	port_timer_init(&port->qualification_timer, port_qualification_timer_to, user_data);
 
 	clock->default_ds.n_ports++;
+	if (ptp_clock_realloc_pollfd(clock, clock->default_ds.n_ports)) {
+		LOG_ERR("Couldn't allocate space for file descriptors.");
+		k_free(port);
+		return;
+	}
+
+	ptp_clock_pollfd_invalidate(clock);
+	sys_slist_append(&clock->ports_list, &port->node);
+	LOG_DBG("PTP Port %d opened", port->port_ds.id.port_number);
 }
 
-void ptp_port_disable(struct ptp_port *port)
+void ptp_port_close(struct ptp_port *port)
 {
-	port->best = NULL;
+	if (ptp_port_enabled(port)) {
+		port_disable(port);
+	}
 
-	ptp_transport_close(port);
+	if (sys_slist_find_and_remove(&port->clock->ports_list, &port->node)) {
+		port->clock->default_ds.n_ports--;
+	}
+
+	k_free(port);
 }
 
 enum ptp_port_state ptp_port_state(struct ptp_port *port)
@@ -118,6 +329,8 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 {
 	enum ptp_port_event event;
 	struct ptp_msg *msg;
+
+	if (port->)
 
 	if (port_ignore_msg(port, msg)) {
 		return PTP_EVT_NONE;
@@ -166,8 +379,14 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 
 void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, bool master_diff)
 {
-	if (ptp_port_state_update(port, event, master_diff)) {
+	if (!ptp_port_state_update(port, event, master_diff)) {
 		return;
+	}
+
+	if (port->port_ds.dalay_mechanism == PTP_DM_P2P) {
+		port_p2p_transition(port, ptp_port_state(port));
+	} else {
+		port_e2e_transition(port, ptp_port_state(port));
 	}
 }
 
@@ -179,9 +398,9 @@ int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool
 
 	if (next_state == PTP_PS_INITIALIZING) {
 		if (ptp_port_enabled(port)) {
-			ptp_port_disable(port);
+			port_disable(port);
 		}
-		if (ptp_port_initialize(port)) {
+		if (port_initialize(port)) {
 			event = PTP_EVT_FAULT_DETECTED;
 		} else {
 			event = PTP_EVT_INIT_COMPLETE;
@@ -191,6 +410,9 @@ int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool
 
 	if (next_state != ptp_port_state(port)) {
 		port->port_ds.state = next_state;
+		LOG_DBG("PTP Port %d changed state to %s",
+			port->port_ds.id.port_number,
+			ptp_state_machine_state_str(next_state));
 		return 1;
 	}
 
@@ -218,7 +440,7 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 	// TODO solve issue when list of foreigns is full
 
 	if (!foreign_present) {
-		memcpy(&foreign->recent_msg, msg, sizeof(ptp_announce_msg));
+		memcpy(&foreign->recent_msg, msg, sizeof(struct ptp_announce_msg));
 		foreign->port_id = port->port_ds.id;
 		foreign->port = port;
 		foreign->dataset.sender = msg->header.src_port_id;
@@ -226,6 +448,7 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 		return 0;
 	}
 
+	return -1;
 }
 
 int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)

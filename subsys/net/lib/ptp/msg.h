@@ -83,7 +83,7 @@ struct ptp_announce_msg {
 	uint8_t			      gm_priority1;
 	struct ptp_clk_quality	      gm_clk_quality;
 	uint8_t			      gm_priority2;
-	struct ptp_clk_id	      gm_id;
+	ptp_clk_id		      gm_id;
 	uint16_t		      steps_rm;
 	uint8_t			      time_src;
 	uint8_t			      suffix[0];
@@ -184,16 +184,16 @@ struct ptp_msg {
 	union {
 		struct ptp_header		     header;
 		struct ptp_announce_msg		     announce;
-		struct ptp_sync_msg;		     sync;
-		struct ptp_delay_req_msg;	     delay_req;
-		struct ptp_follow_up_msg;	     follow_up;
-		struct ptp_delay_resp_msg;	     delay_resp;
-		struct ptp_pdelay_req_msg;	     pdelay_req;
-		struct ptp_pdelay_resp_msg;	     pdelay_resp;
+		struct ptp_sync_msg		     sync;
+		struct ptp_delay_req_msg	     delay_req;
+		struct ptp_follow_up_msg	     follow_up;
+		struct ptp_delay_resp_msg	     delay_resp;
+		struct ptp_pdelay_req_msg	     pdelay_req;
+		struct ptp_pdelay_resp_msg	     pdelay_resp;
 		struct ptp_pdelay_resp_follow_up_msg pdelay_resp_follow_up;
 		struct ptp_signaling_msg	     signaling;
 		struct ptp_management_msg	     management;
-	} __packed;
+	};
 	struct {
 		struct ptp_timestamp protocol;
 		struct ptp_timestamp host;
