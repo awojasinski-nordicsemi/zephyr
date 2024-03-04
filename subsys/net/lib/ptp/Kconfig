@@ -165,6 +165,31 @@ choice
 		  Better known as gPTP (generic PTP) Protocol
 endchoice
 
+choice
+	prompt "PTP Delay Mechanism"
+	default PTP_DELAY_MECHANISM_E2E
+
+	config PTP_DELAY_MECHANISM_E2E
+		bool "End-to-End delay mechanism"
+
+	config PTP_DELAY_MECHANISM_P2P
+		bool "Peer-to-Peer delay mechanism"
+
+	config PTP_DELAY_MECHANISM_COMMON_P2P
+		bool "Peer-to-Peer Common Mean delay mechanism"
+
+	config PTP_DELAY_MECHANISM_SPECIAL
+		bool "Special delay mechanism"
+endchoice
+
+config PTP_DELAY_MECHANISM
+	hex "Delay mechanism used in PTP Domain"
+	default 0x1 if CONFIG_PTP_DELAY_MECHANISM_E2E
+	default 0x2 if CONFIG_PTP_DELAY_MECHANISM_P2P
+	default 0x3 if CONFIG_PTP_DELAY_MECHANISM_COMMON_P2P
+	default 0x4 if CONFIG_PTP_DELAY_MECHANISM_SPECIAL
+	default 0xFE
+
 config PTP_STACK_SIZE
 	int "PTP thread stack size"
 	default 2048
@@ -208,12 +233,11 @@ config PTP_PRIORITY2
 
 config PTP_SLAVE_ONLY
 	bool "Configure Clock as slaveOnly PTP Instance"
-	default false
 	depends on PTP_ORDINARY_CLOCK
+	default false
 	help
 	  An Oridinary Clock may be designed to ba a slaveOnly PTP Instnace. In that state
 	  the instance can never enter the MASTER state.
-	default false
 
 config PTP_FOREIGN_MASTER_LIST_SIZE
 	int "Size of a foreignMasterList used in Best master clock algorithm"

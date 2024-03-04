@@ -26,7 +26,7 @@ enum ptp_delay_mechanism {
 	PTP_DM_P2P,
 	PTP_DM_COMMON_P2P,
 	PTP_DM_SPECIAL,
-	PTP_DM_NO_MECHANISM = 0xFE,
+	PTP_DM_NO_MECHANISM = 0xFE
 };
 
 #ifdef __cplusplus

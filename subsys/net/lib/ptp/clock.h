@@ -25,7 +25,7 @@ extern "C" {
  * @brief PTP Clock structure.
  */
 struct ptp_clock {
-	struct device			*phc;
+	const struct device		*phc;
 	struct ptp_default_ds		default_ds;
 	struct ptp_current_ds		current_ds;
 	struct ptp_parent_ds		parent_ds;
@@ -37,7 +37,7 @@ struct ptp_clock {
 	sys_slist_t			ports_list;
 	struct zsock_pollfd		*pollfd;
 	bool				pollfd_valid;
-	enum ptp_time_src		time_src;
+	uint8_t				time_src;
 };
 
 /**
@@ -128,6 +128,26 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock);
  * @param[in] clock Pointer to the PTP Clock structure.
  */
 void ptp_clock_update_slave(struct ptp_clock *clock);
+
+/**
+ * @brief Function for extracting data from default dataset to a structure allowing to compare
+ * common across all datasets data.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ *
+ * @return Pointer to the ptp_dataset structure containging data from ptp_default_ds structure
+ */
+struct ptp_dataset *ptp_clock_default_ds(struct ptp_clock *clock);
+
+/**
+ * @brief Function for getting a common dataset for the clock's best foreign master clock.
+ *
+ * @param[in] clock Pointer to the PTP Clock structure.
+ *
+ * @return NULL if the clock doesn't have best foreign master clock of pointer to the ptp_dataset
+ * of the best foreign master clock.
+ */
+struct ptp_dataset *ptp_clock_best_foreign_ds(struct ptp_clock *clock);
 
 /**
  * @brief

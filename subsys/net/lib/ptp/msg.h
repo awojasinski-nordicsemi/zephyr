@@ -15,6 +15,7 @@
 #define ZEPHYR_INCLUDE_PTP_MSG_H_
 
 #include <zephyr/kernel.h>
+#include <zephyr/net/net_if.h>
 
 #include "port.h"
 
@@ -198,19 +199,8 @@ struct ptp_msg {
 		struct ptp_timestamp protocol;
 		struct ptp_timestamp host;
 	} timestamp;
-
 	struct sockaddr addr;
 };
-
-/**
- * @brief Function processing receipt of an announce message.
- *
- * @param[in] port Pointer to the PTP Port structure.
- * @param[in] msg  Pointer to the received PTP message.
- *
- * @return Non-zero if the announce message is qualified for consideration by BMCA.
- */
-void ptp_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg);
 
 /**
  * @brief Function compering content of two PTP announce messages.
@@ -221,38 +211,6 @@ void ptp_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg);
  * @return Negative if m1 < m2, 0 if equal, else positive
 */
 int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2);
-
-/**
- * @brief Function processing receipt of a sync message.
- *
- * @param[in] port Pointer to the PTP Port structure.
- * @param[in] msg  Pointer to the received PTP message.
- */
-void ptp_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg);
-
-/**
- * @brief Function processing receipt of a follow_up message.
- *
- * @param[in] port Pointer to the PTP Port structure.
- * @param[in] msg  Pointer to the received PTP message.
- */
-void ptp_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg);
-
-/**
- * @brief Function processing receipt of a delay_req message.
- *
- * @param[in] port Pointer to the PTP Port structure.
- * @param[in] msg  Pointer to the received PTP message.
- */
-void ptp_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg);
-
-/**
- * @brief Function processing receipt of a delay_resp message.
- *
- * @param[in] port Pointer to the PTP Port structure.
- * @param[in] msg  Pointer to the received PTP message.
- */
-void ptp_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg);
 
 /**
  * @brief Function extracting message type from it.

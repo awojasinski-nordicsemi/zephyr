@@ -153,7 +153,7 @@ struct ptp_alt_timescale {
 struct ptp_acceptable_master {
 	struct ptp_port_id port_id;
 	uint8_t		   alt_priority1;
-}
+};
 
 #ifdef __cplusplus
 }

@@ -7,11 +7,14 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp, CONFIG_NET_PTP_LOG_LEVEL);
 
-#include <zephyr/net/net_pkt.h>
 #include <zephyr/drivers/ptp_clock.h>
 #include <zephyr/net/ethernet_mgmt.h>
+#include <zephyr/net/net_pkt.h>
+#include <zephyr/net/ptp.h>
+#include <zephyr/net/socket.h>
 #include <zephyr/random/random.h>
 
+#include "bmca.h"
 #include "clock.h"
 #include "port.h"
 
@@ -124,6 +127,6 @@ void ptp_init(void)
 	}
 
 	tid = k_thread_create(&ptp_thread_data, ptp_stack, K_KERNEL_STACK_SIZEOF(ptp_stack),
-			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), K_NO_WAIT);
+			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), 0, K_NO_WAIT);
 	k_thread_name_set(&ptp_thread_data, "PTP");
 }

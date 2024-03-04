@@ -16,7 +16,6 @@
 
 #include "ddt.h"
 #include "dm.h"
-#include "clock.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,7 +41,7 @@ struct ptp_default_ds {
 	bool		       enable;
 	bool		       external_port_conf_en;
 	uint8_t		       max_steps_rm;
-	enum ptp_clock_type    type;
+	uint8_t		       type;
 };
 
 /**
@@ -69,7 +68,7 @@ struct ptp_parent_ds {
 	ptp_clk_id	       gm_id;
 	struct ptp_clk_quality gm_clk_quality;
 	uint8_t		       gm_priority1;
-	uint8_t		       gm_priotity2;
+	uint8_t		       gm_priority2;
 	struct ptp_port_addr   protocol_addr;
 	bool		       sync_uncertain;
 };
@@ -79,14 +78,9 @@ struct ptp_parent_ds {
  * @note 8.2.4 - timePropertiesDS data set member specification
  */
 struct ptp_time_prop_ds {
-	int16_t		  current_utc_offset;
-	bool		  current_utc_offset_valid;
-	bool		  leap59;
-	bool		  leap61;
-	bool		  time_traceable;
-	bool		  freq_traceable;
-	bool		  ptp_timescale;
-	enum ptp_time_src time_src;
+	int16_t current_utc_offset;
+	uint8_t flags;
+	uint8_t time_src;
 };
 
 /**
@@ -175,14 +169,14 @@ struct ptp_port_ds {
 	/* static */
 	struct ptp_port_id	 id;
 	/* dynamic */
-	enum ptp_port_state	 state;
+	uint8_t			 state;
 	int8_t			 log_min_delay_req_interval;
 	ptp_timeinterval	 mean_link_delay;
 	/* configurable */
 	int8_t			 log_announce_interval;
 	uint8_t			 announce_receipt_timeout;
 	int8_t			 log_sync_interval;
-	enum ptp_delay_mechanism dalay_mechanism;
+	enum ptp_delay_mechanism delay_mechanism;
 	int8_t			 log_min_pdelay_req_interval;
 	uint8_t			 version;
 	ptp_timeinterval	 delay_asymmetry;

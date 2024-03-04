@@ -10,6 +10,7 @@ LOG_MODULE_REGISTER(net_ptp_bmca, CONFIG_PTP_LOG_LEVEL);
 #include <string.h>
 
 #include "bmca.h"
+#include "clock.h"
 
 #define A_BETTER	  (1)
 #define A_BETTER_TOPOLOGY (2)
@@ -129,10 +130,10 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 	struct ptp_dataset *clk_default, *clk_best, *port_best;
 
 	clk_default = ptp_clock_default_ds(port->clock);
-	clk_best = ptp_clock_foreign_ds(port->clock);
-	port_best = &port->best->dataset;
+	clk_best = ptp_clock_best_foreign_ds(port->clock);
+	port_best = ptp_port_best_foreign_ds(port);
 
-	if (!port->foreign && ptp_port_state(port) == PTP_PS_LISTENING) {
+	if (!port_best && ptp_port_state(port) == PTP_PS_LISTENING) {
 		return PTP_PS_LISTENING;
 	}
 

@@ -7,9 +7,11 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 
-#include <zephyr/net/net_ip.h>
 #include <zephyr/drivers/ptp_clock.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/ptp.h>
 
+#include "clock.h"
 #include "msg.h"
 #include "port.h"
 
@@ -31,7 +33,7 @@ static void timestamp_pre_send(struct ptp_protocol_timestamp *ts)
 
 static int msg_header_post_recv(struct ptp_header *header)
 {
-	if (header->version & 0xF != PTP_MAJOR_VERSION) {
+	if ((header->version & 0xF) != PTP_MAJOR_VERSION) {
 		/* Incompatible protocol version */
 		return -1;
 	}
@@ -65,37 +67,7 @@ static void port_id_pre_send(struct ptp_port_id *port_id)
 bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg) {
 	struct ptp_port_id master = port->clock->parent_ds.port_id;
 
-	return ptp_port_id_eq(&master, msg->header.src_port_id);
-}
-
-int ptp_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
-{
-	int ret = 0;
-
-	switch (ptp_port_state(port))
-	{
-	case PTP_PS_INITIALIZING:
-	case PTP_PS_DISABLED:
-	case PTP_PS_FAULTY:
-		break;
-	case PTP_PS_LISTENING:
-	case PTP_PS_PRE_MASTER:
-	case PTP_PS_MASTER:
-	case PTP_PS_GRAND_MASTER:
-#if CONFIG_PTP_FOREIGN_MASTER_FEATURE
-		ret = ptp_port_add_foreign_master(port, msg);
-		break;
-#endif
-	case PTP_PS_SLAVE:
-	case PTP_PS_UNCALIBRATED:
-	case PTP_PS_PASSIVE:
-		ret = ptp_port_update_current_master(port, msg);
-		break:
-	default:
-		break;
-	}
-
-	return ret;
+	return ptp_port_id_eq(&master, &msg->header.src_port_id);
 }
 
 int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
@@ -107,66 +79,6 @@ int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
 		  sizeof(m1->announce.steps_rm);
 
 	return memcmp(&m1->announce.gm_priority1, &m2->announce.gm_priority1, len);
-}
-
-void ptp_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
-{
-	enum ptp_port_state state = ptp_port_state(port);
-
-	if (state != PTP_PS_SLAVE && state != PTP_PS_UNCALIBRATED) {
-		return;
-	}
-
-	if (ptp_check_if_current_parent(port, msg)) {
-		return;
-	}
-
-	if (!(msg->header.flags[0] && PTP_MSG_TWO_STEP_FLAG)) {
-		ptp_clock_adj(port->clock,);
-	}
-}
-
-void ptp_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
-{
-	enum ptp_port_state state = ptp_port_state(port);
-
-	if (state != PTP_PS_SLAVE && state != PTP_PS_UNCALIBRATED) {
-		return;
-	}
-
-	if (ptp_check_if_current_parent(port, msg)) {
-		return;
-	}
-}
-
-void ptp_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
-{
-	enum ptp_port_state state = ptp_port_state(port);
-	struct ptp_msg resp;
-
-	if (state != PTP_PS_MASTER && state != PTP_PS_GRAND_MASTER) {
-		return;
-	}
-
-	// TODO prepare delay_resp message
-
-	resp.header.version = PTP_VERSION;
-	resp.header.msg_length = sizeof(struct ptp_delay_resp_msg);
-	resp.header.src_port_id = port->port_ds.id;
-	resp.header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
-	resp.header.sequence_id = msg->header.sequence_id;
-	resp.header.req_port_id = msg->header.src_port_id;
-
-	if (msg->header.flags && PTP_MSG_UNICAST_FLAG) {
-		// do stuff specific for unicast message
-	}
-
-	ptp_port_send(port, resp);
-}
-
-void ptp_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
-{
-
 }
 
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)

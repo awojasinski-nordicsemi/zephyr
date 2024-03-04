@@ -94,6 +94,16 @@ bool ptp_port_enabled(struct ptp_port *port);
 bool ptp_port_id_eq(const struct ptp_port_id *p1, const struct ptp_port_id *p2);
 
 /**
+ * @brief Function for getting a common dataset for the port's best foreign master clock.
+ *
+ * @param[in] port Pointer to the PTP Port structure.
+ *
+ * @return NULL if the port doesn't have best foreign master clock of pointer to the ptp_dataset
+ * of the best foreign master clock.
+ */
+struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port);
+
+/**
  * @brief Function generating PTP Port events based on PTP Port activity.
  *
  * @param[in] port Pointer to the PTP Port structure.

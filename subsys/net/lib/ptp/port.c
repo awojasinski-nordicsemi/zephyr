@@ -9,12 +9,17 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdbool.h>
 
+#include <zephyr/net/ptp.h>
+
+#include "clock.h"
 #include "port.h"
 #include "msg.h"
+#include "transport.h"
+
 
 static bool port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 {
-	if (ptp_port_id_eq(msg->header.src_port_id, port->port_ds.id)) {
+	if (ptp_port_id_eq(&msg->header.src_port_id, &port->port_ds.id)) {
 		return true;
 	}
 
@@ -32,7 +37,7 @@ static void port_ds_init(struct ptp_port *port)
 
 	/* dynamic */
 	ds->state = PTP_PS_INITIALIZING;
-	ds->log_min_delay_req_interval = CONFIG_PTP_DALAY_REQ_INTERVAL;
+	ds->log_min_delay_req_interval = CONFIG_PTP_DELAY_REQ_INTERVAL;
 	ds->announce_receipt_timeout = CONFIG_PTP_ANNOUNCE_RECV_TIMEOUT;
 	ds->log_sync_interval = CONFIG_PTP_SYNC_INTERVAL;
 	ds->delay_mechanism = (enum ptp_delay_mechanism)CONFIG_PTP_DELAY_MECHANISM;
@@ -242,6 +247,97 @@ static void port_pdelay_timer_to(struct k_timer *timer)
 	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
 }
 
+int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+{
+	int ret = 0;
+
+	switch (ptp_port_state(port))
+	{
+	case PTP_PS_INITIALIZING:
+	case PTP_PS_DISABLED:
+	case PTP_PS_FAULTY:
+		break;
+	case PTP_PS_LISTENING:
+	case PTP_PS_PRE_MASTER:
+	case PTP_PS_MASTER:
+	case PTP_PS_GRAND_MASTER:
+#if CONFIG_PTP_FOREIGN_MASTER_FEATURE
+		ret = ptp_port_add_foreign_master(port, msg);
+		break;
+#endif
+	case PTP_PS_SLAVE:
+	case PTP_PS_UNCALIBRATED:
+	case PTP_PS_PASSIVE:
+		ret = ptp_port_update_current_master(port, msg);
+		break:
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+
+void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+{
+	enum ptp_port_state state = ptp_port_state(port);
+
+	if (state != PTP_PS_SLAVE && state != PTP_PS_UNCALIBRATED) {
+		return;
+	}
+
+	if (ptp_check_if_current_parent(port, msg)) {
+		return;
+	}
+
+	if (!(msg->header.flags[0] && PTP_MSG_TWO_STEP_FLAG)) {
+		ptp_clock_adj(port->clock,);
+	}
+}
+
+void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+{
+	enum ptp_port_state state = ptp_port_state(port);
+
+	if (state != PTP_PS_SLAVE && state != PTP_PS_UNCALIBRATED) {
+		return;
+	}
+
+	if (ptp_check_if_current_parent(port, msg)) {
+		return;
+	}
+}
+
+void port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+{
+	enum ptp_port_state state = ptp_port_state(port);
+	struct ptp_msg resp;
+
+	if (state != PTP_PS_MASTER && state != PTP_PS_GRAND_MASTER) {
+		return;
+	}
+
+	// TODO prepare delay_resp message
+
+	resp.header.version = PTP_VERSION;
+	resp.header.msg_length = sizeof(struct ptp_delay_resp_msg);
+	resp.header.src_port_id = port->port_ds.id;
+	resp.header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
+	resp.header.sequence_id = msg->header.sequence_id;
+	resp.header.req_port_id = msg->header.src_port_id;
+
+	if (msg->header.flags && PTP_MSG_UNICAST_FLAG) {
+		// do stuff specific for unicast message
+	}
+
+	ptp_port_send(port, resp);
+}
+
+void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+{
+
+}
+
 void ptp_port_open(struct net_if *iface, void *user_data)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)user_data;
@@ -321,8 +417,14 @@ bool ptp_port_enabled(struct ptp_port *port)
 	return true;
 }
 
-bool ptp_port_id_eq(const struct ptp_port_id *p1, const struct ptp_port_id *p2) {
+bool ptp_port_id_eq(const struct ptp_port_id *p1, const struct ptp_port_id *p2)
+{
 	return memcmp(p1, p2, sizeof(struct ptp_port_id)) == 0;
+}
+
+struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port)
+{
+	return port->best ? &port->best->dataset : NULL;
 }
 
 enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
@@ -339,10 +441,10 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 	switch (ptp_msg_type_get(msg))
 	{
 	case PTP_MSG_SYNC:
-		ptp_sync_msg_process(port, msg);
+		port_sync_msg_process(port, msg);
 		break;
 	case PTP_MSG_DELAY_REQ:
-		ptp_delay_req_msg_process(port, msg);
+		port_delay_req_msg_process(port, msg);
 		break;
 	case PTP_MSG_PDELAY_REQ:
 		/* code */
@@ -351,16 +453,16 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 		/* code */
 		break;
 	case PTP_MSG_FOLLOW_UP:
-		ptp_follow_up_msg_process(port, msg);
+		port_follow_up_msg_process(port, msg);
 		break;
 	case PTP_MSG_DELAY_RESP:
-		ptp_delay_resp_msg_process(port, msg);
+		port_delay_resp_msg_process(port, msg);
 		break;
 	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
 		/* code */
 		break;
 	case PTP_MSG_ANNOUNCE:
-		if (ptp_announce_msg_process(port, msg)) {
+		if (port_announce_msg_process(port, msg)) {
 			event = PTP_EVT_STATE_DECISION;
 		}
 		break;
