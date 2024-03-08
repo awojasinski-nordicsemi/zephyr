@@ -21,6 +21,12 @@
 extern "C" {
 #endif
 
+/** @brief Threshold value for accepting PTP Instance for consideration in BMCA */
+#define FOREIGN_MASTER_THRESHOLD 2
+
+/** @brief Multiplication factor of message intervals to create time window for announce messages */
+#define FOREIGN_MASTER_TIME_WINDOW_MUL 4
+
 /**
  * @brief PTP Clock structure.
  */
@@ -46,8 +52,8 @@ struct ptp_clock {
 struct ptp_foreign_master_clock {
 	sys_snode_t		node; /* object list */
 	struct ptp_port_id	port_id;
-	uint16_t		messages_count;
-	struct ptp_announce_msg recent_msg;
+	struct k_fifo		messages;
+	uint16_t		messages_count; /* received within a FOREIGN_MASTER_TIME_WINDOW. */
 	struct ptp_dataset	dataset;
 	struct ptp_port		*port;
 };

@@ -128,14 +128,14 @@ struct ptp_dataset *ptp_clock_default_ds(struct ptp_clock *clock)
 	struct ptp_dataset *dds = &clock->dataset;
 
 	dds->priority1		  = clock->default_ds.priority1;
-	dds->clk_id		  = clock->default_ds.clk_id;
 	dds->clk_quality	  = clock->default_ds.clk_quality;
 	dds->priority2		  = clock->default_ds.priority2;
 	dds->steps_rm		  = 0;
 	dds->sender.port_number	  = 0;
 	dds->receiver.port_number = 0;
-	memcpy(&dds->sender.clk_id, &clock->default_ds.clk_id, sizeof(clock->default_ds.clk_id));
-	memcpy(&dds->receiver.clk_id, &clock->default_ds.clk_id, sizeof(clock->default_ds.clk_id));
+	memcpy(&dds->clk_id, &clock->default_ds.clk_id, sizeof(ptp_clk_id));
+	memcpy(&dds->sender.clk_id, &clock->default_ds.clk_id, sizeof(ptp_clk_id));
+	memcpy(&dds->receiver.clk_id, &clock->default_ds.clk_id, sizeof(ptp_clk_id));
 	return dds;
 }
 
@@ -162,16 +162,14 @@ struct ptp_clock *ptp_clock_init(void)
 
 	dds->type = (enum ptp_clock_type)CONFIG_PTP_CLOCK_TYPE;
 	dds->n_ports = 0;
+	dds->slave_only = IS_ENABLED(CONFIG_PTP_SLAVE_ONLY) ? true : false;
 
-	if (IS_ENABLED(CONFIG_PTP_SLAVE_ONLY)) {
-		dds->clk_quality.class = 255;
-	} else {
-		dds->clk_quality.class = 248;
-	}
+	dds->clk_quality.class = dds->slave_only ? 255 : 248;
 	dds->clk_quality.accuracy = CONFIG_PTP_CLOCK_ACCURACY;
-	dds->clk_quality.offset_scaled_log_variance = 0;//TODO
+	/* 0xFFFF means that value has not been computed - IEEE 1588-2019 7.6.3.3 */
+	dds->clk_quality.offset_scaled_log_variance = 0xFFFF;
 
-	dds->max_steps_rm = 0;//TODO
+	dds->max_steps_rm = 255;
 
 	dds->priority1 = CONFIG_PTP_PRIORITY1;
 	dds->priority2 = CONFIG_PTP_PRIORITY2;
@@ -180,6 +178,8 @@ struct ptp_clock *ptp_clock_init(void)
 	ptp_clock_update_grandmaster(clock);
 	pds->obsreved_parent_offset_scaled_log_variance = 0xFFFF;
 	pds->obsreved_parent_clk_phase_change_rate = 0x7FFFFFFF;
+	/* Parent statistics haven't been measured - IEEE 1588-2019 7.6.4.2 */
+	pds->stats = false;
 
 	clock->phc = net_eth_get_ptp_clock(iface);
 	if (!clock->phc) {

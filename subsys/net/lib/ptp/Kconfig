@@ -3,8 +3,9 @@ menuconfig PTP
 	select EXPERIMENTAL
 	depends on PTP_CLOCK && NET_L2_ETHERNET
 	help
-	  Enable PTP driver that send and receives PTP packets
-	  and handles network packet timestamps.
+	  Enable PTP Stack that send and receives PTP packets
+	  and handles network packet timestamps. The protocol's implementation
+	  supports only one PTP Instance in the PTP Node.
 
 if PTP
 
@@ -247,25 +248,37 @@ config PTP_FOREIGN_MASTER_LIST_SIZE
 config PTP_ANNOUNCE_RECV_TIMEOUT
 	int "Number of announce intervals to wait"
 	default 3
+	range 2 255
 	help
 	  Defines the number of announce intervals to wait without receiving
 	  an Announce message before assuming that the master is no longer
-	  transmitting Announce messages.
+	  transmitting Announce messages and rising timeout event.
+
+config PTP_ANNOUNCE_INTERVAL
+	int "Interval between successive Announce messages"
+	default 127 # 0x7F in hexidecimal
+	help
+	  Defines mean time interval between successive Announce messages. The value should be
+	  uniform through PTP domain. For more check IEEE 1588-2019 Section 7.7.2.2.
+
+config PTP_SYNC_INTERVAL
+	int "Interval between successive Sync messages"
+	default 0
+	help
+	  Specify mean time interval between successive Sync messages,
+	  when transmitted as multicast messages.
 
 config PTP_DELAY_REQ_INTERVAL
 	int ""
 	default 0
-
-
-config PTP_SYNC_INTERVAL
-	int ""
-	default 0
+	help
+	  Specifies minimum permitted mean time interval between successive Delay_Req messages.
 
 config PTP_PDALAY_REQ_INTERVAL
 	int "PDelay Req interval in nanoseconds"
 	default 0
 	help
-	  Defines the interval at which a PDalay Req message will be sent.
+	  Specifies minimum permitted mean time interval between successive Pdelay_Req messages.
 
 
 endif # PTP

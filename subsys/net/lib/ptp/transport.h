@@ -35,7 +35,7 @@ enum ptp_net_protocol {
  */
 struct ptp_transport_if {
 	enum ptp_net_protocol type;
-	int (*open)(struct ptp_port *port);
+	int (*open)(struct ptp_port *port, int priority);
 	int (*close)(struct ptp_port *port);
 	int (*send)(struct ptp_port *port);
 	int (*recv)(struct ptp_port *port);

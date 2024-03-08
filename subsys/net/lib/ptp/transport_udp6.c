@@ -13,7 +13,7 @@ LOG_MODULE_REGISTER(net_ptp_transport_udp6, CONFIG_PTP_LOG_LEVEL);
 #include "transport.h"
 
 
-int ptp_transport_udp6_open(struct ptp_port *port, )
+int ptp_transport_udp6_open(struct ptp_port *port, int priority)
 {
 	int sock;
 

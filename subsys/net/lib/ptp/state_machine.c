@@ -38,7 +38,7 @@ const char * const ptp_state_machine_state_str(enum ptp_port_state state)
 	return "<unknown>";
 }
 #else
-#define ptp_state_str(enum ptp_port_state state) (NULL)
+#define ptp_state_str(state) (NULL)
 #endif
 
 enum ptp_port_state ptp_state_machine(enum ptp_port_state state,

@@ -31,12 +31,24 @@ static void ptp_thread(void *p1, void *p2, void *p3);
 
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
+	struct ptp_foreign_clock *best= NULL, *foreign;
 	struct ptp_port *port;
-	ptp_clk_id best_id;
+	bool master_changed = false;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		/* Compute best */
+		foreign = ptp_port_compute_best_foreign(port);
+		if (!foreign) {
+			continue;
+		}
+		if (!best || ptp_bmca_ds_cmp(&foreign->dataset, &best->dataset)) {
+			best = foreign;
+		}
+	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		enum ptp_port_state state;
-		enum ptp_port_event   ;
+		enum ptp_port_event event;
 
 		state = ptp_bmca_state_decision(port);
 
@@ -44,10 +56,13 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 		{
 		case PTP_PS_GRAND_MASTER:
 			ptp_clock_update_grandmaster(clock);
+			event = PTP_EVT_RS_GRAND_MASTER
 			break;
 		default:
 			break;
 		}
+
+		ptp_port_event_handle(port, event, master_changed);
 	}
 }
 
@@ -78,7 +93,8 @@ static void ptp_poll_events(struct ptp_clock *clock)
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		event = ptp_port_event_gen(port);
 
-		if (event == PTP_EVT_STATE_DECISION) {
+		if (event == PTP_EVT_STATE_DECISION ||
+		    EVENT == PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES) {
 			clock->state_decision_event = true;
 		}
 
@@ -99,7 +115,7 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 
 	while (1) {
 
-		ptp_clock_poll_events(clock);
+		ptp_poll_events(clock);
 
 		struct net_pkt *pkt;
 

@@ -12,12 +12,12 @@ LOG_MODULE_REGISTER(net_ptp_transport, CONFIG_PTP_LOG_LEVEL);
 const struct ptp_transport_if iface = {
 #if CONFIG_PTP_IEEE_802_3_PROTOCOL
 	.type  = PTP_NET_PROTOCOL_IEEE_802_3,
-	.open = ptp_transport_eth_open,
-	.close = ptp_transport_eth_close,
-	.send = ptp_transport_eth_send,
-	.recv = ptp_transport_eth_recv,
-	.protocol_addr = ptp_transport_eth_protocol_addr,
-	.physical_addr = ptp_transport_eth_physical_addr,
+	.open = ptp_transport_raw_open,
+	.close = ptp_transport_raw_close,
+	.send = ptp_transport_raw_send,
+	.recv = ptp_transport_raw_recv,
+	.protocol_addr = ptp_transport_raw_protocol_addr,
+	.physical_addr = ptp_transport_raw_physical_addr,
 #endif
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
 	.type  = PTP_NET_PROTOCOL_UDP_IPv4,

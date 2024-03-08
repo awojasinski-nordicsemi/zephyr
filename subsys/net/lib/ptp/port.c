@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 #include "msg.h"
 #include "transport.h"
 
+#define DEFAULT_LOG_MSG_INTERVAL (0x7F)
 
 static bool port_ignore_msg(struct ptp_port *port, struct ptp_msg *msg)
 {
@@ -33,11 +34,12 @@ static void port_ds_init(struct ptp_port *port)
 
 	/* static */
 	memcpy(&ds->id.clk_id, &clock->default_ds.clk_id, sizeof(ptp_clk_id));
-	ds->id.port_number = clock->default_ds.n_ports;
+	ds->id.port_number = clock->default_ds.n_ports + 1;
 
 	/* dynamic */
 	ds->state = PTP_PS_INITIALIZING;
 	ds->log_min_delay_req_interval = CONFIG_PTP_DELAY_REQ_INTERVAL;
+	ds->log_announce_interval = CONFIG_PTP_ANNOUNCE_INTERVAL;
 	ds->announce_receipt_timeout = CONFIG_PTP_ANNOUNCE_RECV_TIMEOUT;
 	ds->log_sync_interval = CONFIG_PTP_SYNC_INTERVAL;
 	ds->delay_mechanism = (enum ptp_delay_mechanism)CONFIG_PTP_DELAY_MECHANISM;
@@ -95,7 +97,10 @@ static void port_set_sync_tx_timeout(struct ptp_port *port)
 
 static void port_set_qualification_timeout(struct ptp_port *port)
 {
+	uint32_t timeout = (port->clock->current_ds.steps_rm + 1) *
+			   (2 << port->port_ds.log_announce_interval);
 
+	k_timer_start(port->qualification_timer, K_SECONDS(timeout), K_NO_WAIT);
 }
 
 static void port_announce_timer_to(struct k_timer *timer)
@@ -245,6 +250,8 @@ static void port_e2e_transition(struct ptp_port *port, enum ptp_port_state next_
 static void port_pdelay_timer_to(struct k_timer *timer)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
+
+
 }
 
 int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
@@ -269,7 +276,7 @@ int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	case PTP_PS_UNCALIBRATED:
 	case PTP_PS_PASSIVE:
 		ret = ptp_port_update_current_master(port, msg);
-		break:
+		break;
 	default:
 		break;
 	}
@@ -308,26 +315,33 @@ void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	}
 }
 
-void port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	enum ptp_port_state state = ptp_port_state(port);
-	struct ptp_msg resp;
+	struct ptp_msg *resp;
 
 	if (state != PTP_PS_MASTER && state != PTP_PS_GRAND_MASTER) {
 		return;
 	}
 
 	// TODO prepare delay_resp message
+	resp = ptp_msg_allocate();
+	if (!resp) {
+		LOG_ERR("Couldn't allocate memory for the message");
+		return -1;
+	}
 
-	resp.header.version = PTP_VERSION;
-	resp.header.msg_length = sizeof(struct ptp_delay_resp_msg);
-	resp.header.src_port_id = port->port_ds.id;
-	resp.header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
-	resp.header.sequence_id = msg->header.sequence_id;
-	resp.header.req_port_id = msg->header.src_port_id;
+	resp->header.version = PTP_VERSION;
+	resp->header.msg_length = sizeof(struct ptp_delay_resp_msg);
+	resp->header.src_port_id = port->port_ds.id;
+	resp->header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
+	resp->header.sequence_id = msg->header.sequence_id;
+	resp->header.req_port_id = msg->header.src_port_id;
 
 	if (msg->header.flags && PTP_MSG_UNICAST_FLAG) {
 		// do stuff specific for unicast message
+		resp->header.flags[0] |= PTP_MSG_UNICAST_FLAG;
+		resp->header.log_msg_interval = DEFAULT_LOG_MSG_INTERVAL;
 	}
 
 	ptp_port_send(port, resp);
@@ -336,6 +350,47 @@ void port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 
+}
+
+static void foreign_clock_cleanup(struct ptp_foreign_master_clock *foreign)
+{
+	struct ptp_msg *msg;
+	int64_t time, timeout, current = k_uptime_get();
+
+	while (foreign->messages_count > FOREIGN_MASTER_THRESHOLD) {
+		(void*)k_fifo_get(foreign->messages, K_NO_WAIT);
+		foreign->messages_count--;
+		// TODO free memory for new message
+	}
+
+	/* Remove messages that don't arrived at
+	   FOREIGN_MASTER_TIME_WINDOW (4 * announce interval) - IEEE 1588-2019 9.3.2.4.5 */
+	while (!k_fifo_is_empty(foreign->messages)) {
+		msg = (struct ptp_msg*)k_fifo_peek_head(foreign->messages);
+		time = msg->timestamp.host.seconds * MSEC_PER_SEC +
+		       msg->timestamp.host.nanoseconds * NSEC_PER_MSEC;
+
+		if (msg->header.log_msg_interval <= -31) {
+			timeout = 0;
+		} else if (msg->header.log_msg_interval >= 31) {
+			timeout = INT64_MAX;
+		} else if (msg->header.log_msg_interval > 0) {
+			timeout = FOREIGN_MASTER_TIME_WINDOW_MUL *
+				  (1 << msg->header.log_msg_interval) * NSEC_PER_MSEC;
+		} else {
+			timeout = FOREIGN_MASTER_TIME_WINDOW_MUL * NSEC_PER_MSEC /
+				  (1 << (-msg->header.log_msg_interval));
+		}
+
+		if (current - time < timeout) {
+			/* Remaining messages are within time window */
+			break;
+		}
+
+		(void*)k_fifo_get(foreign->messages, K_NO_WAIT);
+		foreign->messages_count--;
+		// TODO free memory for new message
+	}
 }
 
 void ptp_port_open(struct net_if *iface, void *user_data)
@@ -432,7 +487,10 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 	enum ptp_port_event event;
 	struct ptp_msg *msg;
 
-	if (port->)
+	if (port->announce_t_expierd) {
+		port->announce_t_expierd = false;
+		return PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES;
+	}
 
 	if (port_ignore_msg(port, msg)) {
 		return PTP_EVT_NONE;
@@ -485,7 +543,7 @@ void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, boo
 		return;
 	}
 
-	if (port->port_ds.dalay_mechanism == PTP_DM_P2P) {
+	if (port->port_ds.delay_mechanism == PTP_DM_P2P) {
 		port_p2p_transition(port, ptp_port_state(port));
 	} else {
 		port_e2e_transition(port, ptp_port_state(port));
@@ -524,33 +582,51 @@ int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool
 int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 {
 	struct ptp_foreign_master_clock *foreign;
-	bool foreign_present = false;
+	struct ptp_msg *last;
+	int diff = 0;
 
-	for (int i = 0; i < CONFIG_PTP_FOREIGN_MASTER_LIST_SIZE; i++) {
-		foreign = &port->foreigns[i];
 
-		/* check whether the foreign clock entry is used */
-		if (foreign->port == NULL) {
-			break;
-		}
+	SYS_SLIST_FOR_EACH_CONTAINER(&port->foreign_list, foreign, node) {
 		if (ptp_msg_src_equal(msg, foreign)) {
-			foreign_present = true;
 			break;
 		}
 	}
 
-	// TODO solve issue when list of foreigns is full
+	if (!foreign) {
 
-	if (!foreign_present) {
-		memcpy(&foreign->recent_msg, msg, sizeof(struct ptp_announce_msg));
-		foreign->port_id = port->port_ds.id;
+		LOG_DBG("Port %d: new foreign master %s",
+			port->port_ds.id.port_number,
+			port_id_to_str(&msg->header.src_port_id));
+
+		foreign = k_malloc(sizeof(*foreign));
+		if (!foreign) {
+			LOG_ERR("Couldn't allocate memory for new foreign master");
+			return 0;
+		}
+
+		memset(foreign, 0, sizeof(*foreign));
+		memcpy(&foreign->dataset.sender,
+		       &msg->header.src_port_id,
+		       sizeof(foreign->dataset.sender));
+		k_fifo_init(foreign->messages);
 		foreign->port = port;
-		foreign->dataset.sender = msg->header.src_port_id;
+
+		sys_slist_append(&port->foreign_list, &foreign->node);
 
 		return 0;
 	}
 
-	return -1;
+	foreign_clock_cleanup(foreign);
+
+	foreign->messages_count++;
+	k_fifo_put(foreign->messages, (void*)msg);
+
+	if (foreign->messages_count > 1) {
+		last = (struct ptp_msg*)k_fifo_peek_tail(foreign->messages);
+		diff = ptp_announce_msg_cmp(msg, last);
+	}
+
+	return (foreign->messages_count == FOREIGN_MASTER_THRESHOLD ? 1 : 0) || diff;
 }
 
 int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)
@@ -561,6 +637,16 @@ int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)
 		return ptp_port_add_foreign_master(port, msg);
 	}
 
+	foreign_clock_cleanup(foreign);
+	k_fifo_put(foreign->messages, (void*)msg);
+	foreign->messages_count++;
+	port_set_announce_timeout(port);
+
+	if (foreign->messages_count > 1) {
+		struct ptp_msg *last = (struct ptp_msg *)k_fifo_peek_tail(foreign->messages);
+
+		return ptp_announce_msg_cmp(msg, last);
+	}
 
 	return 0;
 }

@@ -64,10 +64,18 @@ static void port_id_pre_send(struct ptp_port_id *port_id)
 	port_id->port_number = htons(port_id->port_number);
 }
 
+struct ptp_msg *ptp_msg_duplicate(struct ptp_msg *msg, size_t lenght)
+{
+	struct ptp_msg *duplicate;
+
+	return duplicate;
+}
+
 bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg) {
 	struct ptp_port_id master = port->clock->parent_ds.port_id;
+	struct ptp_port_id msg_id = msg->header.src_port_id;
 
-	return ptp_port_id_eq(&master, &msg->header.src_port_id);
+	return ptp_port_id_eq(&master, &msg_id);
 }
 
 int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
@@ -135,7 +143,7 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 
 int ptp_mgs_post_recv(struct ptp_msg *msg, int cnt)
 {
-	int msg_size;
+	int msg_size = 0;
 
 	if (cnt < sizeof(struct ptp_header)) {
 		return -1;

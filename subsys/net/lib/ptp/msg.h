@@ -203,6 +203,19 @@ struct ptp_msg {
 };
 
 /**
+ * @brief Function duplicating message instance.
+ *
+ * @note Pointer of a message instance passed to the function must be in the network byte order.
+ *
+ * @param[in] msg    Pointer to a message instance.
+ * @param[in] lenght Length in bytes of a message.
+ *
+ * @return Pointer to the duplicated message if successful, NULL otherwise.
+ * The message is in the host byte order.
+ */
+struct ptp_msg *ptp_msg_duplicate(struct ptp_msg *msg, size_t lenght);
+
+/**
  * @brief Function compering content of two PTP announce messages.
  *
  * @param[in] m1 Pointer to the announce message to be compared.

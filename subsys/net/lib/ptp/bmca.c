@@ -139,6 +139,7 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 
 	if (clk_default->clk_quality.class <= 127) {
 		if (ptp_bmca_ds_cmp(clk_default, port_best) > 0) {
+			/* M1 */
 			return PTP_PS_GRAND_MASTER;
 		} else {
 			return PTP_PS_PASSIVE;
@@ -146,6 +147,7 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 	}
 
 	if (ptp_bmca_ds_cmp(clk_default, clk_best) > 0) {
+		/* M2 */
 		return PTP_PS_GRAND_MASTER;
 	}
 
@@ -156,6 +158,7 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 	if (ptp_bmca_ds_cmp(clk_best, port_best) == A_BETTER_TOPOLOGY) {
 		return PTP_PS_PASSIVE;
 	} else {
+		/* M3 */
 		return PTP_PS_MASTER;
 	}
 
