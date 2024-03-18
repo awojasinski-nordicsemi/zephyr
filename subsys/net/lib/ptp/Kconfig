@@ -254,31 +254,32 @@ config PTP_ANNOUNCE_RECV_TIMEOUT
 	  an Announce message before assuming that the master is no longer
 	  transmitting Announce messages and rising timeout event.
 
-config PTP_ANNOUNCE_INTERVAL
+config PTP_ANNOUNCE_LOG_INTERVAL
 	int "Interval between successive Announce messages"
-	default 127 # 0x7F in hexidecimal
+	default 0 #127 # 0x7F in hexidecimal
 	help
 	  Defines mean time interval between successive Announce messages. The value should be
 	  uniform through PTP domain. For more check IEEE 1588-2019 Section 7.7.2.2.
+	  The value is the converted to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
-config PTP_SYNC_INTERVAL
+config PTP_SYNC_LOG_INTERVAL
 	int "Interval between successive Sync messages"
-	default 0
+	default -3
 	help
 	  Specify mean time interval between successive Sync messages,
-	  when transmitted as multicast messages.
-
-config PTP_DELAY_REQ_INTERVAL
-	int ""
-	default 0
-	help
-	  Specifies minimum permitted mean time interval between successive Delay_Req messages.
+	  when transmitted as multicast messages. The value is the converted
+	  to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
 config PTP_PDALAY_REQ_INTERVAL
-	int "PDelay Req interval in nanoseconds"
+	int "PDelay Req interval in Log2 base"
 	default 0
 	help
 	  Specifies minimum permitted mean time interval between successive Pdelay_Req messages.
+	  The value is the converted to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
+config PTP_STATISTICS
+	bool "Collect PTP statistics"
+	help
+	  Collected measurements can be accessed through shell.
 
 endif # PTP

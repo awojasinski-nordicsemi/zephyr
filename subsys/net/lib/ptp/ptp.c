@@ -31,7 +31,7 @@ static void ptp_thread(void *p1, void *p2, void *p3);
 
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
-	struct ptp_foreign_clock *best= NULL, *foreign;
+	struct ptp_foreign_master_clock *best= NULL, *foreign;
 	struct ptp_port *port;
 	bool master_changed = false;
 
@@ -46,6 +46,8 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 		}
 	}
 
+	clock->best = best;
+
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		enum ptp_port_state state;
 		enum ptp_port_event event;
@@ -54,11 +56,25 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 
 		switch (state)
 		{
+		case PTP_PS_LISTENING:
+			event = PTP_EVT_NONE;
+			break;
 		case PTP_PS_GRAND_MASTER:
 			ptp_clock_update_grandmaster(clock);
-			event = PTP_EVT_RS_GRAND_MASTER
+			event = PTP_EVT_RS_GRAND_MASTER;
+			break;
+		case PTP_PS_MASTER:
+			event = PTP_EVT_RS_MASTER;
+			break;
+		case PTP_PS_SLAVE:
+			ptp_clock_update_slave(clock);
+			event = PTP_EVT_RS_SLAVE;
+			break;
+		case PTP_PS_PASSIVE:
+			event = PTP_EVT_RS_PASSIVE;
 			break;
 		default:
+			event = PTP_EVT_FAULT_DETECTED;
 			break;
 		}
 

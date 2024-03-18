@@ -55,6 +55,8 @@ struct ptp_port {
 							 bool master_diff);
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			foreign_list;
+	struct net_pkt			*last_sync_fup;
+	enum ptp_port_sync_fup_state	sync_fup_state;
 };
 
 /**
@@ -92,6 +94,17 @@ bool ptp_port_enabled(struct ptp_port *port);
  * @return True if port identities are equal, False otherwise.
  */
 bool ptp_port_id_eq(const struct ptp_port_id *p1, const struct ptp_port_id *p2);
+
+/**
+ * @brief Function comparing port identities.
+ *
+ * @param[in] p1 Pointer to the port identity structure.
+ * @param[in] p2 Pointer to the port identity structure.
+ *
+ * @return 0 if identities are the same, positive if they are from the same PTP Instance,
+ * negative otherwise.
+ */
+int ptp_port_id_cmp(const struct ptp_port_id *p1, const struct ptp_port_id *p2);
 
 /**
  * @brief Function for getting a common dataset for the port's best foreign master clock.

@@ -47,6 +47,11 @@ static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
 	return 1;
 }
 
+static int clock_parent_ds_cmp(struct ptp_parent_ds *a, struct ptp_parent_ds *b)
+{
+	return 0;
+}
+
 void ptp_clock_check_pollfd(struct ptp_clock *clock)
 {
 	struct ptp_port *port;
@@ -84,6 +89,8 @@ int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports)
 
 void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 {
+	struct ptp_parent_ds old_parent = clock->parent_ds;
+
 	memset(&clock->current_ds, 0, sizeof(clock->current_ds));
 
 	memcpy(&clock->parent_ds.port_id.clk_id,
@@ -97,29 +104,33 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 	clock->parent_ds.gm_priority1 = clock->default_ds.priority1;
 	clock->parent_ds.gm_priority2 = clock->default_ds.priority2;
 
-	clock->time_prop_ds.current_utc_offset = 0; //TODO
+	clock->time_prop_ds.current_utc_offset = 0; //TODO IEEE 1588-2019 9.4
 	clock->time_prop_ds.time_src = clock->time_src;
-	clock->time_prop_ds.flags = 0; //TODO
+	clock->time_prop_ds.flags = 0; //TODO IEEE 1588-2019 9.4
 
-	//TODO compare parent ds before and after if changed send notification to subscribers.
+	if (clock_parent_ds_cmp(&old_parent, &clock->parent_ds)) {
+		// send notification to subscribers.
+	}
 }
 
 void ptp_clock_update_slave(struct ptp_clock *clock)
 {
-	struct ptp_msg *best_msg = (struct ptp_msg *)&clock->best->recent_msg;
+	struct ptp_msg *best_msg = (struct ptp_msg *)k_fifo_peek_tail(clock->best->messages);
 
 	clock->current_ds.steps_rm = 1 + clock->best->dataset.steps_rm;
 
 	memcpy(&clock->parent_ds.gm_id,
 	       &best_msg->announce.gm_id,
 	       sizeof(best_msg->announce.gm_id));
-	clock->parent_ds.port_id = clock->best->dataset.sender;
+	memccpy(&clock->parent_ds.port_id,
+		&clock->best->dataset.sender,
+		sizeof(clock->best->dataset.sender));
 	clock->parent_ds.gm_clk_quality = best_msg->announce.gm_clk_quality;
 	clock->parent_ds.gm_priority1 = best_msg->announce.gm_priority1;
 	clock->parent_ds.gm_priority2 = best_msg->announce.gm_priority2;
 
 	clock->time_prop_ds.current_utc_offset = best_msg->announce.current_utc_offset;
-	clock->time_prop_ds.flags = 0; //TODO
+	clock->time_prop_ds.flags = best_msg->header.flags[1];
 	clock->time_prop_ds.time_src = best_msg->announce.time_src;
 }
 

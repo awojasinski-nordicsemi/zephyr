@@ -9,13 +9,46 @@ LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/drivers/ptp_clock.h>
 #include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_pkt.h>
 #include <zephyr/net/ptp.h>
 
 #include "clock.h"
 #include "msg.h"
 #include "port.h"
 
-static void timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timestamp *ts)
+#define NET_BUF_TIMEOUT K_MSEC(100)
+
+struct ptp_msg_container {
+	uint8_t protocol_header[];
+	struct ptp_msg __aligned(8) msg;
+};
+
+static struct ptp_msg *msg_allocate(struct ptp_port *port, size_t size)
+{
+	struct net_pkt *pkt;
+	struct ptp_msg *msg;
+
+	pkt = net_pkt_alloc_with_buffer(port->iface, size, , , NET_BUF_TIMEOUT);
+	net_buf_add(pkt->buffer, len);
+
+	if (!pkt) {
+		LOG_ERR("Cannot allocate space for message");
+		return NULL;
+	}
+
+
+
+	return msg;
+}
+
+static void msg_free(struct ptp_msg *msg)
+{
+	struct net_pkt *pkt = CONTAINER_OF(msg, struct net_pkt, );
+
+	net_pkt_unref(pkt);
+}
+
+static void msg_timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timestamp *ts)
 {
 	uint16_t high = ntohs(ts->seconds_high);
 	uint32_t low = ntohl(ts->seconds_low);
@@ -24,7 +57,7 @@ static void timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timesta
 	msg->timestamp.protocol.nanoseconds = ntohl(ts->nanoseconds);
 }
 
-static void timestamp_pre_send(struct ptp_protocol_timestamp *ts)
+static void msg_timestamp_pre_send(struct ptp_protocol_timestamp *ts)
 {
 	ts->seconds_high = htons(ts->seconds_high);
 	ts->seconds_low = htonl(ts->seconds_low);
@@ -54,12 +87,12 @@ static void msg_header_pre_send(struct ptp_header *header)
 	header->sequence_id = htons(header->sequence_id);
 }
 
-static void port_id_post_recv(struct ptp_port_id *port_id)
+static void msg_port_id_post_recv(struct ptp_port_id *port_id)
 {
 	port_id->port_number = ntohs(port_id->port_number);
 }
 
-static void port_id_pre_send(struct ptp_port_id *port_id)
+static void msg_port_id_pre_send(struct ptp_port_id *port_id)
 {
 	port_id->port_number = htons(port_id->port_number);
 }
@@ -111,18 +144,18 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	case PTP_MSG_PDELAY_REQ:
 		break;
 	case PTP_MSG_PDELAY_RESP:
-		timestamp_pre_send(&msg->pdelay_resp.req_receipt_timestamp);
-		port_id_pre_send(&msg->pdelay_resp.req_port_id);
+		msg_timestamp_pre_send(&msg->pdelay_resp.req_receipt_timestamp);
+		msg_port_id_pre_send(&msg->pdelay_resp.req_port_id);
 		break;
 	case PTP_MSG_FOLLOW_UP:
 		break;
 	case PTP_MSG_DELAY_RESP:
-		timestamp_pre_send(&msg->delay_resp.receive_timestamp);
-		port_id_pre_send(&msg->delay_resp.req_port_id);
+		msg_timestamp_pre_send(&msg->delay_resp.receive_timestamp);
+		msg_port_id_pre_send(&msg->delay_resp.req_port_id);
 		break;
 	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
-		timestamp_pre_send(&msg->pdelay_resp_follow_up.resp_origin_timestamp);
-		port_id_pre_send(&msg->pdelay_resp_follow_up.req_port_id);
+		msg_timestamp_pre_send(&msg->pdelay_resp_follow_up.resp_origin_timestamp);
+		msg_port_id_pre_send(&msg->pdelay_resp_follow_up.req_port_id);
 		break;
 	case PTP_MSG_ANNOUNCE:
 		msg->announce.current_utc_offset = htons(msg->announce.current_utc_offset);
@@ -131,10 +164,10 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 		msg->announce.steps_rm = htons(msg->announce.steps_rm);
 		break;
 	case PTP_MSG_SIGNALING:
-		port_id_pre_send(&msg->signaling.target_port_id);
+		msg_port_id_pre_send(&msg->signaling.target_port_id);
 		break;
 	case PTP_MSG_MANAGEMENT:
-		port_id_pre_send(&msg->management.target_port_id);
+		msg_port_id_pre_send(&msg->management.target_port_id);
 		break;
 	}
 
@@ -196,39 +229,39 @@ int ptp_mgs_post_recv(struct ptp_msg *msg, int cnt)
 	switch (type)
 	{
 	case PTP_MSG_SYNC:
-		timestamp_post_recv(msg, &msg->sync.origin_timestamp);
+		msg_timestamp_post_recv(msg, &msg->sync.origin_timestamp);
 		break;
 	case PTP_MSG_DELAY_REQ:
 		break;
 	case PTP_MSG_PDELAY_REQ:
 		break;
 	case PTP_MSG_PDELAY_RESP:
-		timestamp_post_recv(msg, &msg->pdelay_resp.req_receipt_timestamp);
-		port_id_post_recv(&msg->pdelay_resp.req_port_id);
+		msg_timestamp_post_recv(msg, &msg->pdelay_resp.req_receipt_timestamp);
+		msg_port_id_post_recv(&msg->pdelay_resp.req_port_id);
 		break;
 	case PTP_MSG_FOLLOW_UP:
-		timestamp_post_recv(msg, &msg->follow_up.precise_origin_timestamp);
+		msg_timestamp_post_recv(msg, &msg->follow_up.precise_origin_timestamp);
 		break;
 	case PTP_MSG_DELAY_RESP:
-		timestamp_post_recv(msg, &msg->delay_resp.receive_timestamp);
-		port_id_post_recv(&msg->delay_resp.req_port_id);
+		msg_timestamp_post_recv(msg, &msg->delay_resp.receive_timestamp);
+		msg_port_id_post_recv(&msg->delay_resp.req_port_id);
 		break;
 	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
-		timestamp_post_recv(msg, &msg->pdelay_resp_follow_up.resp_origin_timestamp);
-		port_id_post_recv(&msg->pdelay_resp_follow_up.req_port_id);
+		msg_timestamp_post_recv(msg, &msg->pdelay_resp_follow_up.resp_origin_timestamp);
+		msg_port_id_post_recv(&msg->pdelay_resp_follow_up.req_port_id);
 		break;
 	case PTP_MSG_ANNOUNCE:
-		timestamp_post_recv(msg, &msg->announce.origin_timestamp);
+		msg_timestamp_post_recv(msg, &msg->announce.origin_timestamp);
 		msg->announce.current_utc_offset = ntohs(msg->announce.current_utc_offset);
 		msg->announce.gm_clk_quality.offset_scaled_log_variance =
 			ntohs(msg->announce.gm_clk_quality.offset_scaled_log_variance);
 		msg->announce.steps_rm = ntohs(msg->announce.steps_rm);
 		break;
 	case PTP_MSG_SIGNALING:
-		port_id_post_recv(&msg->signaling.target_port_id);
+		msg_port_id_post_recv(&msg->signaling.target_port_id);
 		break;
 	case PTP_MSG_MANAGEMENT:
-		port_id_post_recv(&msg->management.target_port_id);
+		msg_port_id_post_recv(&msg->management.target_port_id);
 		break;
 	}
 

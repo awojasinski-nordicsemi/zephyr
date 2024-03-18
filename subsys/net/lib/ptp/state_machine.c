@@ -109,6 +109,9 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 			new_state = IS_ENABLED(CONFIG_PTP_PRE_MASTER_PESENT) ?
 					PTP_PS_PRE_MASTER : PTP_PS_MASTER;
 			break;
+		case PTP_EVT_RS_GRAND_MASTER:
+			new_state = PTP_PS_GRAND_MASTER;
+			break;
 		case PTP_EVT_RS_PASSIVE:
 			new_state = PTP_PS_PASSIVE;
 			break;
@@ -184,6 +187,9 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 			new_state = IS_ENABLED(CONFIG_PTP_PRE_MASTER_PESENT) ?
 					PTP_PS_PRE_MASTER : PTP_PS_MASTER;
 			break;
+		case PTP_EVT_RS_GRAND_MASTER:
+			new_state = PTP_PS_GRAND_MASTER;
+			break;
 		case PTP_EVT_RS_SLAVE:
 			new_state = IS_ENABLED(CONFIG_PTP_UNCALIBRATED_PRESENT) ?
 					PTP_PS_UNCALIBRATED : PTP_PS_SLAVE;
@@ -214,6 +220,9 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 			new_state = IS_ENABLED(CONFIG_PTP_PRE_MASTER_PESENT) ?
 					PTP_PS_PRE_MASTER : PTP_PS_MASTER;
 			break;
+		case PTP_EVT_RS_GRAND_MASTER:
+			new_state = PTP_PS_GRAND_MASTER;
+			break;
 		case PTP_EVT_RS_PASSIVE:
 			new_state = PTP_PS_PASSIVE;
 			break;
@@ -243,6 +252,9 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		case PTP_EVT_RS_MASTER:
 			new_state = IS_ENABLED(CONFIG_PTP_PRE_MASTER_PRESENT) ?
 					PTP_PS_PRE_MASTER : PTP_PS_MASTER;
+			break;
+		case PTP_EVT_RS_GRAND_MASTER:
+			new_state = PTP_PS_GRAND_MASTER;
 			break;
 		case PTP_EVT_RS_PASSIVE:
 			new_state = PTP_PS_PASSIVE;
@@ -346,6 +358,7 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 			break;
 		case PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES:
 		case PTP_EVT_RS_MASTER:
+		case PTP_EVT_RS_GRAND_MASTER:
 		case PTP_EVT_RS_PASSIVE:
 			new_state = IS_ENABLED(CONFIG_PTP_LISTENING_PRESENT) ?
 					PTP_PS_LISTENING : new_state;
@@ -374,6 +387,7 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 			break;
 		case PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES:
 		case PTP_EVT_RS_MASTER:
+		case PTP_EVT_RS_GRAND_MASTER:
 		case PTP_EVT_RS_PASSIVE:
 			new_state = IS_ENABLED(CONFIG_PTP_LISTENING_PRESENT) ?
 					PTP_PS_LISTENING : new_state;
