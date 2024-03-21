@@ -26,10 +26,12 @@ compatible API implementation for Zephyr:
   expose native POSIX names.
 
 BSD Sockets compatible API is enabled using :kconfig:option:`CONFIG_NET_SOCKETS`
-config option and implements the following operations: ``socket()``, ``close()``,
-``recv()``, ``recvfrom()``, ``send()``, ``sendto()``, ``connect()``, ``bind()``,
-``listen()``, ``accept()``, ``fcntl()`` (to set non-blocking mode),
-``getsockopt()``, ``setsockopt()``, ``poll()``, ``select()``,
+config option and implements the following operations: ``socket()``,
+``socketpair()``, ``close()``, ``shutdown()``, ``recv()``, ``recvfrom()``,
+``recvmsg()``, ``send()``, ``sendto()``, ``sendmsg``, ``connect()``, ``bind()``,
+``ioctl()``, ``listen()``, ``accept()``, ``fcntl()`` (to set non-blocking mode),
+``getsockopt()``, ``setsockopt()``, ``getpeername()``, ``getsockname()``,
+``gethostname()``, ``inet_pton()``, ``inet_ntop()``, ``poll()``, ``select()``,
 ``getaddrinfo()``, ``getnameinfo()``.
 
 Based on the namespacing requirements above, these operations are by
