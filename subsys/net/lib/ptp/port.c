@@ -38,12 +38,12 @@ static void port_ds_init(struct ptp_port *port)
 
 	/* dynamic */
 	ds->state = PTP_PS_INITIALIZING;
-	ds->log_min_delay_req_interval = CONFIG_PTP_DELAY_REQ_INTERVAL;
-	ds->log_announce_interval = CONFIG_PTP_ANNOUNCE_INTERVAL;
+	ds->log_min_delay_req_interval = //TODO CONFIG_PTP_DELAY_REQ_INTERVAL;
+	ds->log_announce_interval = CONFIG_PTP_ANNOUNCE_LOG_INTERVAL;
 	ds->announce_receipt_timeout = CONFIG_PTP_ANNOUNCE_RECV_TIMEOUT;
-	ds->log_sync_interval = CONFIG_PTP_SYNC_INTERVAL;
+	ds->log_sync_interval = CONFIG_PTP_SYNC_LOG_INTERVAL;
 	ds->delay_mechanism = (enum ptp_delay_mechanism)CONFIG_PTP_DELAY_MECHANISM;
-	ds->log_min_pdelay_req_interval = CONFIG_PTP_PDALAY_REQ_INTERVAL;
+	ds->log_min_pdelay_req_interval = CONFIG_PTP_PDALAY_REQ_LOG_INTERVAL;
 	ds->version = PTP_VERSION;
 	ds->delay_asymmetry = 0;
 }
@@ -67,6 +67,19 @@ static void port_disable(struct ptp_port *port)
 	port->best = NULL;
 	port->socket = -1;
 	ptp_clock_pollfd_invalidate(port->clock);
+}
+
+static struct ptp_port *port_get_port_from_iface(struct ptp_clock *clock, struct net_if *iface)
+{
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(clock->ports_list, port, node) {
+		if (port->iface == iface) {
+			return port;
+		}
+	}
+
+	return NULL;
 }
 
 static void port_timer_init(struct k_timer *timer, k_timer_expiry_t timeout_fn, void *user_data)
@@ -161,6 +174,33 @@ static void port_qualification_timer_to(struct k_timer *timer)
 			port->announce_t_expired = true;
 		}
 	}
+}
+
+static void port_sync_timestamp_cb(struct net_pkt *pkt)
+{
+	struct ptp_port *port = port_get_port_from_iface(); //TODO: retreive port from pkt
+
+	if (ptp_msg_type_get(ptp_msg_get_from_pkt(pkt)) == PTP_MSG_SYNC) {
+
+
+		port->sync_ts_cb_registered = false;
+
+		net_if_unregister_timestamp_cb(port->sync_ts_cb);
+	}
+}
+
+static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
+{
+	struct ptp_port *port = ; //TODO: retreive port from pkt
+
+	if (ptp_msg_type_get(ptp_msg_get_from_pkt(pkt)) == PTP_MSG_PDELAY_RESP) {
+
+
+		port->pdelay_resp_ts_cb_registered = false;
+
+		net_if_unregister_timestamp_cb(port->pdelay_resp_ts_cb);
+	}
+
 }
 
 static void port_p2p_transition(struct ptp_port *port, enum ptp_port_state next_state)
@@ -266,7 +306,8 @@ static void port_synchronize(struct ptp_port *port,
 
 static void port_sync_fup_ooo_handle(struct ptp_port *port, struct ptp_msg *msg)
 {
-	struct ptp_msg *last = port->last_sync_fup;
+	struct net_pkt *pkt = port->last_sync_fup;
+	struct ptp_msg *last;
 
 	if (ptp_msg_type_get(msg) != PTP_MSG_FOLLOW_UP &&
 	    ptp_msg_type_get(msg) != PTP_MSG_SYNC) {
@@ -342,7 +383,7 @@ void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 		return;
 	}
 
-	if (ptp_check_if_current_parent(port, msg)) {
+	if (!ptp_check_if_current_parent(port, msg)) {
 		return;
 	}
 
@@ -374,7 +415,7 @@ void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 		return;
 	}
 
-	if (ptp_check_if_current_parent(port, msg)) {
+	if (!ptp_check_if_current_parent(port, msg)) {
 		return;
 	}
 

@@ -110,7 +110,7 @@ static void ptp_poll_events(struct ptp_clock *clock)
 		event = ptp_port_event_gen(port);
 
 		if (event == PTP_EVT_STATE_DECISION ||
-		    EVENT == PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES) {
+		    event == PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES) {
 			clock->state_decision_event = true;
 		}
 

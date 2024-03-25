@@ -1,7 +1,8 @@
 menuconfig PTP
 	bool "IEEE 1588 (PTP) support [EXPERIMENTAL]"
 	select EXPERIMENTAL
-	depends on PTP_CLOCK && NET_L2_ETHERNET
+	select NET_PKT_TIMESTAMP
+	depends on PTP_CLOCK && NET_L2_ETHERNET && !NET_L2_PTP
 	help
 	  Enable PTP Stack that send and receives PTP packets
 	  and handles network packet timestamps. The protocol's implementation
@@ -270,7 +271,7 @@ config PTP_SYNC_LOG_INTERVAL
 	  when transmitted as multicast messages. The value is the converted
 	  to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
-config PTP_PDALAY_REQ_INTERVAL
+config PTP_PDALAY_REQ_LOG_INTERVAL
 	int "PDelay Req interval in Log2 base"
 	default 0
 	help

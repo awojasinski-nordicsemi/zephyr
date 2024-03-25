@@ -199,6 +199,7 @@ struct ptp_msg {
 		struct ptp_timestamp protocol;
 		struct ptp_timestamp host;
 	} timestamp;
+	int ref;
 	struct sockaddr addr;
 };
 
@@ -226,6 +227,16 @@ struct ptp_msg *ptp_msg_duplicate(struct ptp_msg *msg, size_t lenght);
 int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2);
 
 /**
+ * @brief Function checking if given message comes from current PTP Port's Master PTP instance.
+ *
+ * @param[in] port Pointer to a PTP Port instance.
+ * @param[in] msg  Pointer to a message.
+ *
+ * @return True if message is received from curent PTP Port's Master, false otherwise.
+ */
+bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg);
+
+/**
  * @brief Function extracting message type from it.
  *
  * @param[in] msg Pointer to the message.
@@ -233,6 +244,15 @@ int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2);
  * @return Type of the message.
 */
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg);
+
+/**
+ * @brief Function extracting PTP message from network packet
+ *
+ * @param[in] pkt Network packet
+ *
+ * @return Pointer to a PTP message
+ */
+struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
 
 #ifdef __cplusplus
 }

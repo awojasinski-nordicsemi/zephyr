@@ -16,32 +16,36 @@ LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 #include "msg.h"
 #include "port.h"
 
-#define NET_BUF_TIMEOUT K_MSEC(100)
+#define PTP_MSG_POOL 10
 
-struct ptp_msg_container {
-	uint8_t protocol_header[];
-	struct ptp_msg __aligned(8) msg;
+struct msg_container {
+	// TODO size of header for protocol;
+	struct ptp_msg msg __aligned(8);
 };
 
-static struct ptp_msg *msg_allocate(struct ptp_port *port, size_t size)
+struct msg_container msg_pool[PTP_MSG_POOL];
+
+static struct ptp_msg *msg_allocate()
 {
-	struct net_pkt *pkt;
-	struct ptp_msg *msg;
+	struct ptp_msg *msg = NULL;
 
-	pkt = net_pkt_alloc_with_buffer(port->iface, size, , , NET_BUF_TIMEOUT);
-	net_buf_add(pkt->buffer, len);
-
-	if (!pkt) {
-		LOG_ERR("Cannot allocate space for message");
-		return NULL;
+	for (size_t i = 0; i < PTP_MSG_POOL; i++) {
+		if (msg_pool[i].msg.ref == 0) {
+			msg = &msg_pool[i].msg;
+			msg->ref++;
+		}
 	}
 
+	if (!msg) {
+		LOG_ERR("Cannot allocate space for message");
+		return NULL;
 
+	}
 
-	return msg;
+	return ;
 }
 
-static void msg_free(struct ptp_msg *msg)
+static void msg_unref(struct ptp_msg *msg)
 {
 	struct net_pkt *pkt = CONTAINER_OF(msg, struct net_pkt, );
 
@@ -97,14 +101,8 @@ static void msg_port_id_pre_send(struct ptp_port_id *port_id)
 	port_id->port_number = htons(port_id->port_number);
 }
 
-struct ptp_msg *ptp_msg_duplicate(struct ptp_msg *msg, size_t lenght)
+bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg)
 {
-	struct ptp_msg *duplicate;
-
-	return duplicate;
-}
-
-bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg) {
 	struct ptp_port_id master = port->clock->parent_ds.port_id;
 	struct ptp_port_id msg_id = msg->header.src_port_id;
 
@@ -120,6 +118,13 @@ int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
 		  sizeof(m1->announce.steps_rm);
 
 	return memcmp(&m1->announce.gm_priority1, &m2->announce.gm_priority1, len);
+}
+
+struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt)
+{
+	// TODO: Strip UDP headers from net_pkt
+
+	return;
 }
 
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)

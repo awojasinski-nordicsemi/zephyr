@@ -56,7 +56,10 @@ struct ptp_port {
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			foreign_list;
 	struct net_pkt			*last_sync_fup;
-	enum ptp_port_sync_fup_state	sync_fup_state;
+	net_if_timestamp_callback_t	sync_ts_cb;
+	net_if_timestamp_callback_t	pdelay_resp_ts_cb;
+	bool				sync_ts_cb_registered;
+	bool				pdelay_resp_ts_cb_registered;
 };
 
 /**
