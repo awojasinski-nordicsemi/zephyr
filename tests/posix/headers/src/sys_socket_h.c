@@ -79,6 +79,7 @@ ZTEST(posix_headers, test_sys_socket_h)
 	zassert_not_equal(-1, SO_SNDLOWAT);
 	zassert_not_equal(-1, SO_SNDTIMEO);
 	zassert_not_equal(-1, SO_TYPE);
+	zassert_not_equal(-1, SO_TIMESTAMPING);
 
 	zassert_not_equal(-1, SOMAXCONN);
 

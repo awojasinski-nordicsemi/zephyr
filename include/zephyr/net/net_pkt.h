@@ -115,6 +115,9 @@ struct net_pkt {
 	 * TODO: Replace with net_time_t to decouple from PTP.
 	 */
 	struct net_ptp_time timestamp;
+
+	/* Passes timestamping options from net_context to */
+	int ts_flags;
 #endif
 
 #if defined(CONFIG_NET_PKT_RXTIME_STATS) || defined(CONFIG_NET_PKT_TXTIME_STATS)

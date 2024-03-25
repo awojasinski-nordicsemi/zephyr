@@ -2530,6 +2530,20 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 			}
 
 			break;
+
+		case SO_TIMESTAMPING:
+			if (IS_ENABLED(CONFIG_NET_CONTEXT_RECV_PKTINFO) &&
+			    net_context_get_type(ctx) == SOCK_DGRAM) {
+				ret = net_tcp_get_option(ctx,
+							 NET_OPT_TIMESTAMPING,
+							 optval, optlen);
+				if (ret < 0) {
+					errno = -ret;
+					return -1;
+				}
+			}
+
+			break;
 		}
 
 		break;
@@ -3063,6 +3077,20 @@ int zsock_setsockopt_ctx(struct net_context *ctx, int level, int optname,
 				}
 
 				return 0;
+			}
+
+			break;
+
+		case SO_TIMESTAMPING:
+			if (IS_ENABLED(CONFIG_NET_CONTEXT_RECV_PKTINFO) &&
+			    net_context_get_type(ctx) == SOCK_DGRAM) {
+				ret = net_context_set_option(ctx,
+							     NET_OPT_TIMESTAMPING,
+							     optval, optlen);
+				if (ret < 0) {
+					errno = -ret;
+					return -1;
+				}
 			}
 
 			break;

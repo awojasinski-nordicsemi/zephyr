@@ -346,6 +346,7 @@ __net_socket struct net_context {
 		bool ipv6_v6only;
 #endif
 #if defined(CONFIG_NET_CONTEXT_RECV_PKTINFO)
+		int timestamping;
 		/** Receive network packet information in recvmsg() call */
 		bool recv_pktinfo;
 #endif
@@ -1263,6 +1264,7 @@ enum net_context_option {
 	NET_OPT_MCAST_HOP_LIMIT   = 14,
 	NET_OPT_UNICAST_HOP_LIMIT = 15,
 	NET_OPT_TTL               = 16,
+	NET_OPT_TIMESTAMPING      = 17,
 };
 
 /**

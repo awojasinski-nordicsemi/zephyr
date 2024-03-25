@@ -290,6 +290,58 @@ In case no ``SO_BINDTODEVICE`` socket option is used on a socket, the socket
 will be dispatched according to the default priority and filtering rules on a
 first socket API call.
 
+Timestamping packets
+====================
+
+BSD Sockets API allows for time stamping packets. The ``SO_TIMESTAMPING`` socket
+option enables types of time stamping. The option takes bitmask of flags.
+
+Following types of timestamping are supported:
+
+- ``SOF_TIMESTAMPING_TX_HARDWARE``
+- ``SOF_TIMESTAMPING_TX_SOFTWARE``
+- ``SOF_TIMESTAMPING_RX_HARDWARE``
+- ``SOF_TIMESTAMPING_RX_SOFTWARE``
+- ``SOF_TIMESTAMPING_SOFTWARE``
+- ``SOF_TIMESTAMPING_SYS_HARDWARE``
+- ``SOF_TIMESTAMPING_RAW_HARDWARE``
+- ``SOF_TIMESTAMPING_BIND_PHC``
+
+Timestampinc can be configured with socket options. For instance, the
+hardware timestamping of outgoing and incoming packets can be set:
+
+.. code-block:: c
+   /* A socket is created */
+   sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+   int ts = SOF_TIMESTAMPING_TX_HARDWARE |
+            SOF_TIMESTAMPING_RX_HARDWARE;
+
+   /* The socket is */
+   ret = setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING, &ts, sizeof(ts));
+
+The timestamp generation can be also enabled for individual outgoing packet
+using cmsg and sending the message by calling ``sendmsg()``:
+
+.. code-block:: c
+   struct msghdr *msg;
+
+   cmsg                            = CMSG_FIRSTHDR(msg);
+   cmsg->cmsg_level                = SOL_SOCKET;
+   cmsg->cmsg_type                 = SO_TIMESTAMPING;
+   cmsg->cmsg_len                  = CMSG_LEN(sizeof(__u32));
+   *((uint32_t *) CMSG_DATA(cmsg)) = SOF_TIMESTAMPING_TX_HARDWARE;
+   ret = sendmsg(sock, msg, 0);
+
+This will override any TX timestamp option set via ``setsockopt()``.
+Moreover an application needs to enable timestamp reporting via ``setsockopt()``
+to receive timestamp values:
+
+.. code-block:: c
+   int ts = SOF_TIMESTAMPING_SYS_HARDWARE;
+
+   ret = setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING, &ts, sizeof(ts));
+
 API Reference
 *************
 

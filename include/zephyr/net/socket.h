@@ -27,6 +27,7 @@
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/dns_resolve.h>
 #include <zephyr/net/socket_select.h>
+#include <zephyr/net/socket_timestamps.h>
 #include <zephyr/sys/iterable_sections.h>
 #include <zephyr/sys/fdtable.h>
 #include <stdlib.h>
@@ -1161,7 +1162,7 @@ struct ifreq {
 /** Socket accepts incoming connections (ignored, for compatibility) */
 #define SO_ACCEPTCONN 30
 
-/** Timestamp TX packets */
+/** Timestamp packets. The timestamp is received in the pktinfo  */
 #define SO_TIMESTAMPING 37
 /** Protocol used with the socket */
 #define SO_PROTOCOL 38

@@ -1711,6 +1711,24 @@ static int get_context_recv_pktinfo(struct net_context *context,
 #endif
 }
 
+static int get_context_timestamping(struct net_context *context,
+				    void *value, size_t *len)
+{
+#if defined(CONFIG_NET_CONTEXT_RECV_PKTINFO)
+	*((int *)value) = context->options.timestamping;
+
+	if (len) {
+		*len = sizeof(int);
+	}
+#else
+	ARG_UNUSED(context);
+	ARG_UNUSED(value);
+	ARG_UNUSED(len);
+
+	return -ENOTSUP;
+#endif
+}
+
 /* If buf is not NULL, then use it. Otherwise read the data to be written
  * to net_pkt from msghdr.
  */
@@ -1861,6 +1879,21 @@ static void set_pkt_txtime(struct net_pkt *pkt, const struct msghdr *msghdr)
 		if (cmsg->cmsg_len == CMSG_LEN(sizeof(uint64_t)) &&
 		    cmsg->cmsg_level == SOL_SOCKET &&
 		    cmsg->cmsg_type == SCM_TXTIME) {
+			net_pkt_set_timestamp_ns(pkt, *(net_time_t *)CMSG_DATA(cmsg));
+			break;
+		}
+	}
+}
+
+static void set_pkt_timestamping(struct net_pkt *pkt, const struct msghdr *msghdr)
+{
+	struct cmsghdr *cmsg;
+
+	for (cmsg = CMSG_FIRSTHDR(msghdr); cmsg != NULL;
+	     cmsg = CMSG_NXTHDR(msghdr, cmsg)) {
+		if (cmsg->cmsg_len == CMSG_LEN(sizeof(uint64_t)) &&
+		    cmsg->cmsg_level == SOL_SOCKET &&
+		    cmsg->cmsg_type == SO_TIMESTAMPING) {
 			net_pkt_set_timestamp_ns(pkt, *(net_time_t *)CMSG_DATA(cmsg));
 			break;
 		}
@@ -2156,6 +2189,9 @@ static int context_sendto(struct net_context *context,
 				set_pkt_txtime(pkt, msghdr);
 			}
 		}
+
+
+		// TODO: Check if SO_TIMESTAMPING is set
 	}
 
 skip_alloc:
@@ -2973,6 +3009,30 @@ static int set_context_recv_pktinfo(struct net_context *context,
 #endif
 }
 
+static int set_context_timestamping(struct net_context *context,
+				    void *value, size_t *len)
+{
+#if defined(CONFIG_NET_CONTEXT_RECV_PKTINFO)
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
+	if (len != sizeof(int)) {
+		return -EINVAL;
+	}
+
+	context->options.timestamping = *((int *)value);
+
+	return 0;
+#else
+	ARG_UNUSED(context);
+	ARG_UNUSED(value);
+	ARG_UNUSED(len);
+
+	return -ENOTSUP;
+#endif
+}
+
 int net_context_set_option(struct net_context *context,
 			   enum net_context_option option,
 			   const void *value, size_t len)
@@ -3035,6 +3095,9 @@ int net_context_set_option(struct net_context *context,
 		break;
 	case NET_OPT_RECV_PKTINFO:
 		ret = set_context_recv_pktinfo(context, value, len);
+		break;
+	case NET_OPT_TIMESTAMPING:
+		ret = set_context_timestamping(context, value, len);
 		break;
 	}
 
@@ -3105,6 +3168,9 @@ int net_context_get_option(struct net_context *context,
 		break;
 	case NET_OPT_RECV_PKTINFO:
 		ret = get_context_recv_pktinfo(context, value, len);
+		break;
+	case NET_OPT_TIMESTAMPING:
+		ret = get_context_timestamping(context, value, len);
 		break;
 	}
 

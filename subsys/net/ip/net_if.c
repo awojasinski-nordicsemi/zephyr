@@ -332,6 +332,7 @@ void net_process_tx_packet(struct net_pkt *pkt)
 
 void net_if_queue_tx(struct net_if *iface, struct net_pkt *pkt)
 {
+	// TODO check if good place for getting timestamp back to context
 	if (!net_pkt_filter_send_ok(pkt)) {
 		/* silently drop the packet */
 		net_pkt_unref(pkt);
