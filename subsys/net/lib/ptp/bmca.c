@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,11 +11,23 @@ LOG_MODULE_REGISTER(net_ptp_bmca, CONFIG_PTP_LOG_LEVEL);
 
 #include "bmca.h"
 #include "clock.h"
+#include "port.h"
 
 #define A_BETTER	  (1)
 #define A_BETTER_TOPOLOGY (2)
 #define B_BETTER	  (-1)
 #define B_BETTER_TOPOLOGY (-2)
+
+static int bmca_port_id_cmp(const struct ptp_port_id *p1, const struct ptp_port_id *p2)
+{
+	int diff = memcmp(&p1->clk_id, &p2->clk_id, sizeof(p1->clk_id));
+
+	if (diff == 0) {
+		diff = p1->port_number - p2->port_number;
+	}
+
+	return diff;
+}
 
 static int ptp_bmca_ds_cmp2(const struct ptp_dataset *a, const struct ptp_dataset *b)
 {
@@ -30,7 +42,7 @@ static int ptp_bmca_ds_cmp2(const struct ptp_dataset *a, const struct ptp_datase
 	}
 
 	if (a->steps_rm > b->steps_rm) {
-		diff = ptp_bmca_port_id_cmp(&a->receiver, &a->sender);
+		diff = bmca_port_id_cmp(&a->receiver, &a->sender);
 		if (diff > 0) {
 			return B_BETTER_TOPOLOGY;
 		}
@@ -42,7 +54,7 @@ static int ptp_bmca_ds_cmp2(const struct ptp_dataset *a, const struct ptp_datase
 	}
 
 	if (a->steps_rm < b->steps_rm) {
-		diff = ptp_bmca_port_id_cmp(&b->receiver, &b->sender);
+		diff = bmca_port_id_cmp(&b->receiver, &b->sender);
 		if (diff > 0) {
 			return A_BETTER_TOPOLOGY;
 		}
@@ -53,7 +65,7 @@ static int ptp_bmca_ds_cmp2(const struct ptp_dataset *a, const struct ptp_datase
 		return 0;
 	}
 
-	diff = ptp_bmca_port_id_cmp(&a->sender, &b->sender);
+	diff = bmca_port_id_cmp(&a->sender, &b->sender);
 	if (diff > 0) {
 		return B_BETTER_TOPOLOGY;
 	}
@@ -69,17 +81,6 @@ static int ptp_bmca_ds_cmp2(const struct ptp_dataset *a, const struct ptp_datase
 	}
 	/* error-2 */
 	return 0;
-}
-
-int ptp_bmca_port_id_cmp(const struct ptp_port_id *p1, const struct ptp_port_id *p2)
-{
-	int diff = memcmp(&p1->clk_id, &p2->clk_id, sizeof(p1->clk_id));
-
-	if (diff == 0) {
-		diff = p1->port_number - p2->port_number;
-	}
-
-	return diff;
 }
 
 int ptp_bmca_ds_cmp(const struct ptp_dataset *a, const struct ptp_dataset *b)
@@ -142,6 +143,7 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 			/* M1 */
 			return PTP_PS_GRAND_MASTER;
 		} else {
+			/* P1 */
 			return PTP_PS_PASSIVE;
 		}
 	}
@@ -152,10 +154,12 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 	}
 
 	if (port->clock->best->port == port) {
+		/* S1 */
 		return PTP_PS_SLAVE;
 	}
 
 	if (ptp_bmca_ds_cmp(clk_best, port_best) == A_BETTER_TOPOLOGY) {
+		/* P2 */
 		return PTP_PS_PASSIVE;
 	} else {
 		/* M3 */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,22 +22,12 @@ extern "C" {
 #endif
 
 /**
- * @brief Function comparing two PTP Port Identities.
- *
- * @param[in] p1 Pointer to the first PTP Port Identity
- * @param[in] p2 Pointer to the second PTP Port Identity
- *
- * @return
- */
-int ptp_bmca_port_id_cmp(const struct ptp_port_id *p1, const struct ptp_port_id *p2);
-
-/**
  * @brief Function comparing two datasets.
  *
  * @param[in] a Pointer to the first dataset.
  * @param[in] b Pointer to the second dataset.
  *
- * @return negative if b is better than a, 0 if a == b, else positive
+ * @return Negative if b is better than a, 0 if a == b, else positive.
  */
 int ptp_bmca_ds_cmp(const struct ptp_dataset *a, const struct ptp_dataset *b);
 
@@ -46,7 +36,7 @@ int ptp_bmca_ds_cmp(const struct ptp_dataset *a, const struct ptp_dataset *b);
  *
  * @param[in] port Pointer to a PTP Port.
  *
- * @return
+ * @return Proposed PTP Port's state after execution of the state decision algorithm.
  */
 enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port);
 

@@ -15,7 +15,6 @@
 #define ZEPHYR_INCLUDE_PTP_DS_H_
 
 #include "ddt.h"
-#include "dm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -159,6 +158,17 @@ struct ptp_perf_monitor_ds {
 /* optional enhanced synchronization accuracy metrics feature */
 struct ptp_enhandec_sync_accuracy_metrics_ds {
 	bool enable;
+};
+
+/**
+ * @brief Enumeration for types of delay mechanisms for PTP Clock.
+ */
+enum ptp_delay_mechanism {
+	PTP_DM_E2E = 1,
+	PTP_DM_P2P,
+	PTP_DM_COMMON_P2P,
+	PTP_DM_SPECIAL,
+	PTP_DM_NO_MECHANISM = 0xFE
 };
 
 /**

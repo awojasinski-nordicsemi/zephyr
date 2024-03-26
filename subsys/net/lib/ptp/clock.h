@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -156,9 +156,11 @@ struct ptp_dataset *ptp_clock_default_ds(struct ptp_clock *clock);
 struct ptp_dataset *ptp_clock_best_foreign_ds(struct ptp_clock *clock);
 
 /**
- * @brief
+ * @brief Function initializing PTP Clock Instance.
+ *
+ * @return Pointer to the structure representing PTP Clock Instance.
  */
-struct ptp_clock *ptp_clock_init();
+struct ptp_clock *ptp_clock_init(void);
 
 #ifdef __cplusplus
 }

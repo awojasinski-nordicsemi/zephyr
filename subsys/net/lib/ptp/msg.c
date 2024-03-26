@@ -18,8 +18,14 @@ LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 
 #define PTP_MSG_POOL 10
 
+#if CONFIG_PTP_UDP_IPv4_PROTOCOL
+#define HDR_LEN (NET_IPV4H_LEN + NET_UDPH_LEN)
+#elif CONFIG_PTP_UDP_IPv6_PROTOCOL
+#define HDR_LEN (NET_IPV6H_LEN + NET_UDPH_LEN)
+#endif
+
 struct msg_container {
-	// TODO size of header for protocol;
+	uint8_t reserved[HDR_LEN];
 	struct ptp_msg msg __aligned(8);
 };
 
@@ -39,17 +45,21 @@ static struct ptp_msg *msg_allocate()
 	if (!msg) {
 		LOG_ERR("Cannot allocate space for message");
 		return NULL;
-
 	}
 
-	return ;
+	return;
 }
 
 static void msg_unref(struct ptp_msg *msg)
 {
-	struct net_pkt *pkt = CONTAINER_OF(msg, struct net_pkt, );
+	if (msg->ref > 0) {
+		msg->ref--;
 
-	net_pkt_unref(pkt);
+		if (msg->ref == 0) {
+			msg_container *container = CONTAINER_OF(msg, struct msg_container, msg);
+			memset(container, 0, sizeof(*container));
+		}
+	}
 }
 
 static void msg_timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timestamp *ts)
@@ -111,10 +121,8 @@ bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg)
 
 int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
 {
-	int len = sizeof(m1->announce.gm_priority1) +
-		  sizeof(m1->announce.gm_clk_quality) +
-		  sizeof(m1->announce.gm_priority1) +
-		  sizeof(m1->announce.gm_id) +
+	int len = sizeof(m1->announce.gm_priority1) + sizeof(m1->announce.gm_clk_quality) +
+		  sizeof(m1->announce.gm_priority1) + sizeof(m1->announce.gm_id) +
 		  sizeof(m1->announce.steps_rm);
 
 	return memcmp(&m1->announce.gm_priority1, &m2->announce.gm_priority1, len);
@@ -138,8 +146,7 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 
 	msg_header_pre_send(&msg->header);
 
-	switch (type)
-	{
+	switch (type) {
 	case PTP_MSG_SYNC:
 		break;
 	case PTP_MSG_DELAY_REQ:
@@ -193,8 +200,7 @@ int ptp_mgs_post_recv(struct ptp_msg *msg, int cnt)
 
 	enum ptp_msg_type type = ptp_msg_type_get(msg);
 
-	switch (type)
-	{
+	switch (type) {
 	case PTP_MSG_SYNC:
 		msg_size = sizeof(struct ptp_sync_msg);
 		break;
@@ -231,8 +237,7 @@ int ptp_mgs_post_recv(struct ptp_msg *msg, int cnt)
 		return -1;
 	}
 
-	switch (type)
-	{
+	switch (type) {
 	case PTP_MSG_SYNC:
 		msg_timestamp_post_recv(msg, &msg->sync.origin_timestamp);
 		break;
