@@ -140,7 +140,7 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)
 	return (enum ptp_msg_type)msg->header.type;
 }
 
-int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
+int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 {
 	enum ptp_msg_type type = ptp_msg_type_get(msg);
 
@@ -186,7 +186,7 @@ int ptp_mgs_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	return 0;
 }
 
-int ptp_mgs_post_recv(struct ptp_msg *msg, int cnt)
+int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 {
 	int msg_size = 0;
 
