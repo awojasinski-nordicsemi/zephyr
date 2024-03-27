@@ -18,6 +18,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 /**
  * @brief Type of TLV (time, lenght, value)
  *
@@ -103,6 +105,13 @@ enum ptp_mgmt_id {
 	PTP_MGMT_PRIMARY_DOMAIN,
 	PTP_MGMT_DELAY_MECHANISM = 0x6000,
 	PTP_MGMT_LOG_MIN_PDELAY_REQ_INTERVAL,
+};
+
+struct ptp_tlv_mgmt {
+	uint16_t type;
+	uint16_t length;
+	uint16_t id;
+	uint8_t  data[0];
 };
 
 #ifdef __cplusplus

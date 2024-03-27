@@ -18,6 +18,7 @@ LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 #include "bmca.h"
 #include "clock.h"
 #include "port.h"
+#include "tlv.h"
 
 static struct ptp_clock domain_clock = { 0 };
 
@@ -202,4 +203,115 @@ struct ptp_clock *ptp_clock_init(void)
 	sys_slist_init(&clock->ports_list);
 
 	return clock;
+}
+
+void ptp_clock_management_handle(struct ptp_msg *msg)
+{
+	struct ptp_tlv_mgmt *mgmt = msg->management.suffix;
+
+	/* only supported messages are */
+	switch(mgmt->id) {
+	case PTP_MGMT_NULL_PTP_MANAGEMENT:
+		break;
+	case PTP_MGMT_CLOCK_DESCRIPTION:
+		break;
+	case PTP_MGMT_USER_DESCRIPTION:
+		break;
+	case PTP_MGMT_SAVE_IN_NON_VOLATILE_STORAGE:
+		break;
+	case PTP_MGMT_RESET_NON_VOLATILE_STORAGE:
+		break;
+	case PTP_MGMT_INITIALIZE:
+		break;
+	case PTP_MGMT_FAULT_LOG:
+		break;
+	case PTP_MGMT_FAULT_LOG_RESET:
+		break;
+	case PTP_MGMT_DEFAULT_DATA_SET:
+		break;
+	case PTP_MGMT_CURRENT_DATA_SET:
+		break;
+	case PTP_MGMT_PARENT_DATA_SET:
+		break;
+	case PTP_MGMT_TIME_PROPERTIES_DATA_SET:
+		break;
+	case PTP_MGMT_PORT_DATA_SET:
+		break;
+	case PTP_MGMT_PRIORITY1:
+		break;
+	case PTP_MGMT_PRIORITY2:
+		break;
+	case PTP_MGMT_DOMAIN:
+		break;
+	case PTP_MGMT_SLAVE_ONLY:
+		break;
+	case PTP_MGMT_LOG_ANNOUNCE_INTERVAL:
+		break;
+	case PTP_MGMT_ANNOUNCE_RECEIPT_TIMEOUT:
+		break;
+	case PTP_MGMT_LOG_SYNC_INTERVAL:
+		break;
+	case PTP_MGMT_VERSION_NUMBER:
+		break;
+	case PTP_MGMT_ENABLE_PORT:
+		break;
+	case PTP_MGMT_DISABLE_PORT:
+		break;
+	case PTP_MGMT_TIME:
+		break;
+	case PTP_MGMT_CLOCK_ACCURACY:
+		break;
+	case PTP_MGMT_UTC_PROPERTIES:
+		break;
+	case PTP_MGMT_TRACEBILITY_PROPERTIES:
+		break;
+	case PTP_MGMT_TIMESCALE_PROPERTIES:
+		break;
+	case PTP_MGMT_UNICAST_NEGOTIATION_ENABLE:
+		break;
+	case PTP_MGMT_PATH_TRACE_LIST:
+		break;
+	case PTP_MGMT_PATH_TRACE_ENABLE:
+		break;
+	case PTP_MGMT_GRANDMASTER_CLUSTER_TABLE:
+		break;
+	case PTP_MGMT_UNICAST_MASTER_TABLE:
+		break;
+	case PTP_MGMT_UNICAST_MASTER_MAX_TABLE_SIZE:
+		break;
+	case PTP_MGMT_ACCEPTABLE_MASTER_TABLE:
+		break;
+	case PTP_MGMT_ACCEPTABLE_MASTER_TABLE_ENABLED:
+		break;
+	case PTP_MGMT_ACCEPTABLE_MASTER_MAX_TABLE_SIZE:
+		break;
+	case PTP_MGMT_ALTERNATE_MASTER:
+		break;
+	case PTP_MGMT_ALTERNATE_TIME_OFFSET_ENABLE:
+		break;
+	case PTP_MGMT_ALTERNATE_TIME_OFFSET_NAME:
+		break;
+	case PTP_MGMT_ALTERNATE_TIME_OFFSET_MAX_KEY:
+		break;
+	case PTP_MGMT_ALTERNATE_TIME_OFFSET_PROPERTIES:
+		break;
+	case PTP_MGMT_EXTERNAL_PORT_CONFIGURATION_ENABLED:
+		break;
+	case PTP_MGMT_MASTER_ONLY:
+		break;
+	case PTP_MGMT_HOLDOVER_UPGRADE_ENABLE:
+		break;
+	case PTP_MGMT_EXT_PORT_CONFIG_PORT_DATA_SET:
+		break;
+	case PTP_MGMT_TRANSPARENT_CLOCK_DEFAULT_DATA_SET:
+		break;
+	case PTP_MGMT_TRANSPARENT_CLOCK_PORT_DATA_SET:
+		break;
+	case PTP_MGMT_PRIMARY_DOMAIN:
+		break;
+	case PTP_MGMT_DELAY_MECHANISM:
+		break;
+	case PTP_MGMT_LOG_MIN_PDELAY_REQ_INTERVAL:
+		break;
+	}
 }

@@ -10,7 +10,6 @@ zephyr_library_sources(
   port.c
   ptp.c
   state_machine.c
-  tc_clock.c
   transport.c
 )
 
