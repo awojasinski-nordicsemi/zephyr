@@ -194,6 +194,7 @@ struct ptp_msg {
 		struct ptp_pdelay_resp_follow_up_msg pdelay_resp_follow_up;
 		struct ptp_signaling_msg	     signaling;
 		struct ptp_management_msg	     management;
+		uint8_t				     mtu[1500]; // MTU of Ethernet II frame
 	};
 	struct {
 		struct ptp_timestamp protocol;
@@ -202,6 +203,22 @@ struct ptp_msg {
 	int ref;
 	struct sockaddr addr;
 };
+
+/**
+ * @brief Function alocating space for new PTP message.
+ *
+ * @return Pointer to the PTP Message.
+ */
+struct ptp_msg *ptp_msg_allocate(void);
+
+/**
+ * @brief Function removing refference to the PTP message.
+ *
+ * @note If the message is not refferenced anywhere, the memory space is cleared.
+ *
+ * @param[in] msg Pointer to the PTP message.
+ */
+void ptp_msg_unref(struct ptp_msg *msg);
 
 /**
  * @brief Function duplicating message instance.
@@ -253,6 +270,26 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg);
  * @return Pointer to a PTP message
  */
 struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
+
+/**
+ * @brief Function preparing message for right before transmission.
+ *
+ * @param[in] clock Pointer to the PTP Clock instance.
+ * @param[in] msg   Pointer to the received PTP message.
+ *
+ * @return
+ */
+int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg);
+
+/**
+ * @brief Function preparing message for further processing after reception.
+ *
+ * @param[in] msg Pointer to the received PTP message.
+ * @param[in] cnt Length of the message in bytes.
+ *
+ * @return
+ */
+int ptp_msg_post_recv(struct ptp_msg *msg, int cnt);
 
 #ifdef __cplusplus
 }

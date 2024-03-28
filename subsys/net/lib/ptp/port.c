@@ -10,6 +10,7 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 #include <stdbool.h>
 
 #include <zephyr/net/ptp.h>
+#include <zephyr/net/socket.h>
 
 #include "clock.h"
 #include "port.h"
@@ -170,8 +171,8 @@ static void port_qualification_timer_to(struct k_timer *timer)
 	struct ptp_port *port;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		if (timer == &port->announce_timer) {
-			port->announce_t_expired = true;
+		if (timer == &port->qualification_timer) {
+			port->qualification_t_expierd = true;
 		}
 	}
 }
@@ -203,49 +204,7 @@ static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 
 }
 
-static void port_p2p_transition(struct ptp_port *port, enum ptp_port_state next_state)
-{
-	k_timer_stop(&port->delay_timer);
-	k_timer_stop(&port->announce_timer);
-	k_timer_stop(&port->sync_rx_timer);
-	k_timer_stop(&port->sync_tx_timer);
-	k_timer_stop(&port->qualification_timer);
-
-	switch (next_state) {
-	case PTP_PS_INITIALIZING:
-		break;
-	case PTP_PS_FAULTY:
-	case PTP_PS_DISABLED:
-		port_disable(port);
-		break;
-	case PTP_PS_LISTENING:
-		port_set_announce_timeout(port);
-		port_set_delay_timeout(port);
-		break;
-	case PTP_PS_PRE_MASTER:
-		port_set_qualification_timeout(port);
-		break;
-	case PTP_PS_GRAND_MASTER:
-	case PTP_PS_MASTER:
-		if (!p->inhibit_announce) {
-			set_tmo_log(p->fda.fd[FD_MANNO_TIMER], 1, -10); /*~1ms*/
-		}
-		port_set_sync_tx_timeout(port);
-		break;
-	case PTP_PS_PASSIVE:
-		port_set_announce_timeout(port);
-		break;
-	case PTP_PS_UNCALIBRATED:
-		flush_last_sync(p);
-		flush_peer_delay(p);
-		/* fall through */
-	case PTP_PS_SLAVE:
-		port_set_announce_timeout(port);
-		break;
-	};
-}
-
-static void port_e2e_transition(struct ptp_port *port, enum ptp_port_state next_state)
+static void port_state_transition(struct ptp_port *port, enum ptp_port_state next_state)
 {
 	k_timer_stop(&port->delay_timer);
 	k_timer_stop(&port->announce_timer);
@@ -344,7 +303,7 @@ static void port_sync_fup_ooo_handle(struct ptp_port *port, struct ptp_msg *msg)
 	}
 }
 
-int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+static int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	int ret = 0;
 
@@ -375,7 +334,7 @@ int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 }
 
 
-void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+static void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	enum ptp_port_state state = ptp_port_state(port);
 
@@ -406,7 +365,7 @@ void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	port_sync_fup_ooo_handle(port, msg);
 }
 
-void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+static void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	enum ptp_port_state state = ptp_port_state(port);
 	struct ptp_msg *sync = port->last_sync;
@@ -422,7 +381,7 @@ void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	port_sync_fup_ooo_handle(port, msg);
 }
 
-int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	enum ptp_port_state state = ptp_port_state(port);
 	struct ptp_msg *resp;
@@ -454,7 +413,12 @@ int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	ptp_port_send(port, resp);
 }
 
-void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+static void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+{
+
+}
+
+static void port_signalling_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 
 }
@@ -610,7 +574,8 @@ struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port)
 
 enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 {
-	enum ptp_port_event event;
+	enum ptp_port_event event = PTP_EVT_NONE;
+	enum ptp_port_state
 	struct ptp_msg *msg;
 
 	if (port->announce_t_expierd) {
@@ -618,7 +583,29 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 		return PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES;
 	}
 
+	if (port->sync_tx_t_expierd &&
+	    ) {
+		port_sync_msg_transmit(port);
+	}
+
+	msg = ptp_msg_allocate();
+	if (!msg) {
+		LOG_ERR("Couldn't allocate memory for incoming PTP message");
+		return PTP_EVT_FAULT_DETECTED;
+	}
+
+	int cnt = zsock_recv(port->socket, (void *)msg, sizeof(msg->mtu), ZSOCK_MSG_WAITALL);
+
+	if (cnt =< 0) {
+		LOG_ERR("Error during message reception");
+		ptp_msg_unref(msg);
+		return PTP_EVT_FAULT_DETECTED;
+	}
+
+	ptp_msg_post_receive(msg, cnt);
+
 	if (port_ignore_msg(port, msg)) {
+		ptp_msg_unref(msg);
 		return PTP_EVT_NONE;
 	}
 
@@ -651,10 +638,10 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 		}
 		break;
 	case PTP_MSG_SIGNALING:
-		/* code */
+		port_sygnalling_msg_process(port, msg);
 		break;
 	case PTP_MSG_MANAGEMENT:
-		/* code */
+		port_mgmt_msg_process(port, msg);
 		break;
 	default:
 		break;
@@ -669,11 +656,7 @@ void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, boo
 		return;
 	}
 
-	if (port->port_ds.delay_mechanism == PTP_DM_P2P) {
-		port_p2p_transition(port, ptp_port_state(port));
-	} else {
-		port_e2e_transition(port, ptp_port_state(port));
-	}
+	port_state_transition(port, ptp_port_state(port));
 }
 
 int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool master_diff)

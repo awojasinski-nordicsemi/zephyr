@@ -31,37 +31,6 @@ struct msg_container {
 
 struct msg_container msg_pool[PTP_MSG_POOL];
 
-static struct ptp_msg *msg_allocate()
-{
-	struct ptp_msg *msg = NULL;
-
-	for (size_t i = 0; i < PTP_MSG_POOL; i++) {
-		if (msg_pool[i].msg.ref == 0) {
-			msg = &msg_pool[i].msg;
-			msg->ref++;
-		}
-	}
-
-	if (!msg) {
-		LOG_ERR("Cannot allocate space for message");
-		return NULL;
-	}
-
-	return;
-}
-
-static void msg_unref(struct ptp_msg *msg)
-{
-	if (msg->ref > 0) {
-		msg->ref--;
-
-		if (msg->ref == 0) {
-			msg_container *container = CONTAINER_OF(msg, struct msg_container, msg);
-			memset(container, 0, sizeof(*container));
-		}
-	}
-}
-
 static void msg_timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timestamp *ts)
 {
 	uint16_t high = ntohs(ts->seconds_high);
@@ -109,6 +78,37 @@ static void msg_port_id_post_recv(struct ptp_port_id *port_id)
 static void msg_port_id_pre_send(struct ptp_port_id *port_id)
 {
 	port_id->port_number = htons(port_id->port_number);
+}
+
+struct ptp_msg *ptp_msg_allocate(void)
+{
+	struct ptp_msg *msg = NULL;
+
+	for (size_t i = 0; i < PTP_MSG_POOL; i++) {
+		if (msg_pool[i].msg.ref == 0) {
+			msg = &msg_pool[i].msg;
+			msg->ref++;
+		}
+	}
+
+	if (!msg) {
+		LOG_ERR("Cannot allocate space for message");
+		return NULL;
+	}
+
+	return;
+}
+
+void ptp_msg_unref(struct ptp_msg *msg)
+{
+	if (msg->ref > 0) {
+		msg->ref--;
+
+		if (msg->ref == 0) {
+			msg_container *container = CONTAINER_OF(msg, struct msg_container, msg);
+			memset(container, 0, sizeof(*container));
+		}
+	}
 }
 
 bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg)
