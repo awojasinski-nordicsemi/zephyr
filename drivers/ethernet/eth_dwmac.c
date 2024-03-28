@@ -22,6 +22,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "eth_dwmac_priv.h"
 #include "eth.h"
 
+#if defined(CONFIG_ETH_DWMAC_PTP_CLOCK)
+#include <zephyr/drivers/ptp_clock.h>
+#endif
 
 /*
  * This driver references network data fragments with a zero-copy approach.
@@ -622,3 +625,56 @@ const struct ethernet_api dwmac_api = {
 	.set_config		= dwmac_set_config,
 	.send			= dwmac_send,
 };
+
+#if defined(CONFIG_ETH_DWMAC_PTP_CLOCK)
+
+static int ptp_clock_dwmac_set(const struct device *dev, struct net_ptp_time *tm)
+{
+
+}
+
+static int ptp_clock_dwmac_get(const struct device *dev, struct net_ptp_time *tm)
+{
+
+}
+
+static int ptp_clock_dwmac_adjust(const struct device *dev, int increment)
+{
+
+}
+
+static int ptp_clock_dwmac_rate_adjust(const struct device *dev, double ratio)
+{
+
+}
+
+static const struct ptp_clock_driver_api ptp_clock_dwmac_api = {
+	.set = ptp_clock_dwmac_set,
+	.get = ptp_clock_dwmac_get,
+	.adjust = ptp_clock_dwmac_adjust,
+	.rate_adjust = ptp_clock_dwmac_rate_adjust,
+};
+
+static int ptp_clock_dwmac_init(const struct device *port)
+{
+	uint32_t reg;
+
+	reg = REG_READ(MAC_TIMESTAMP_CTRL);
+	REG_WRITE(MAC_TIMESTAMP_CTRL, reg | MAC_TIMESTAMP_CTRL_TSENA);
+
+	return 0;
+}
+
+#define DWMAC_PTP_CLOCK_INIT(inst)						\
+	static struct ptp_context ptp_dwmac_##inst##_context = {		\
+										\
+	};									\
+										\
+	DEVICE_DEFINE(dwmac_ptp_clock, ptp_clock_dwmac_init,			\
+		      NULL, &ptp_dwmac_##inst##_context, NULL,			\
+		      POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY,		\
+		      ptp_clock_dwmac_api);
+
+DT_INST_FOREACH_STATUS_OKAY(DWMAC_PTP_CLOCK_INIT);
+
+#endif
