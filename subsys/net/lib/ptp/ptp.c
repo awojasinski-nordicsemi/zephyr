@@ -98,16 +98,25 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 		ptp_clock_check_pollfd(clock);
 		cnt = zsock_poll(clock->pollfd, clock->default_ds.n_ports, 0);
 
-		if (!cnt) {
-			/* No messages waiting for processing. */
-			return;
-		}
-
 		fd = clock->pollfd;
 
 		SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-			if (fd->revents & (ZSOCK_POLLIN | ZSOCK_POLLPRI)) {
-				event = ptp_port_event_gen(port);
+			struct k_timer *timers[] = {
+				&port->announce_timer,
+				&port->master_announce_timer,
+				&port->delay_timer;
+				&port->sync_rx_timer,
+				&port->sync_tx_timer,
+				&port->qualification_timer,
+				NULL, // used for socket
+			};
+
+			for (int i = 0; i < sizeof(timers); i++) {
+				if (timers[i] == NULL &&
+				    !(fd->revents & (ZSOCK_POLLIN | ZSOCK_POLLPRI))) {
+					continue;
+				}
+				event = ptp_port_event_gen(port, timers[i]);
 
 				if (event == PTP_EVT_STATE_DECISION ||
 				    event == PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES) {

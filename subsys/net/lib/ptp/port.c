@@ -70,19 +70,6 @@ static void port_disable(struct ptp_port *port)
 	ptp_clock_pollfd_invalidate(port->clock);
 }
 
-static struct ptp_port *port_get_port_from_iface(struct ptp_clock *clock, struct net_if *iface)
-{
-	struct ptp_port *port;
-
-	SYS_SLIST_FOR_EACH_CONTAINER(clock->ports_list, port, node) {
-		if (port->iface == iface) {
-			return port;
-		}
-	}
-
-	return NULL;
-}
-
 static void port_timer_init(struct k_timer *timer, k_timer_expiry_t timeout_fn, void *user_data)
 {
 	k_timer_init(timer, timeout_fn, NULL);
@@ -129,7 +116,7 @@ static void port_announce_timer_to(struct k_timer *timer)
 	}
 }
 
-static void port_delay_timer_to(struct k_timer *timer)
+static void port_delay_timer_to(struct ptp_port *port)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
 	struct ptp_port *port;
@@ -179,7 +166,11 @@ static void port_qualification_timer_to(struct k_timer *timer)
 
 static void port_sync_timestamp_cb(struct net_pkt *pkt)
 {
-	struct ptp_port *port = port_get_port_from_iface(); //TODO: retreive port from pkt
+	struct ptp_port *port = ptp_clock_get_port_from_iface(pkt->iface);
+
+	if (!port) {
+		return;
+	}
 
 	if (ptp_msg_type_get(ptp_msg_get_from_pkt(pkt)) == PTP_MSG_SYNC) {
 
@@ -192,7 +183,11 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 
 static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 {
-	struct ptp_port *port = ; //TODO: retreive port from pkt
+	struct ptp_port *port = ptp_clock_get_port_from_iface(pkt->iface);
+
+	if (!port) {
+		return;
+	}
 
 	if (ptp_msg_type_get(ptp_msg_get_from_pkt(pkt)) == PTP_MSG_PDELAY_RESP) {
 
@@ -204,10 +199,16 @@ static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 
 }
 
+static int port_msg_send(struct ptp_port *port, struct ptp_msg *msg)
+{
+
+}
+
 static void port_state_transition(struct ptp_port *port, enum ptp_port_state next_state)
 {
-	k_timer_stop(&port->delay_timer);
 	k_timer_stop(&port->announce_timer);
+	k_timer_stop(&port->master_announce_timer);
+	k_timer_stop(&port->delay_timer);
 	k_timer_stop(&port->sync_rx_timer);
 	k_timer_stop(&port->sync_tx_timer);
 	k_timer_stop(&port->qualification_timer);
@@ -228,9 +229,7 @@ static void port_state_transition(struct ptp_port *port, enum ptp_port_state nex
 		break;
 	case PTP_PS_GRAND_MASTER:
 	case PTP_PS_MASTER:
-		if (!p->inhibit_announce) {
-			set_tmo_log(p->fda.fd[FD_MANNO_TIMER], 1, -10); /*~1ms*/
-		}
+		port_set_master_announce_timeout(port);
 		port_set_sync_tx_timeout(port);
 		break;
 	case PTP_PS_PASSIVE:
@@ -244,13 +243,6 @@ static void port_state_transition(struct ptp_port *port, enum ptp_port_state nex
 		port_set_announce_timeout(port);
 		break;
 	};
-}
-
-static void port_pdelay_timer_to(struct k_timer *timer)
-{
-	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
-
-
 }
 
 static void port_synchronize(struct ptp_port *port,
@@ -359,6 +351,7 @@ static void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 				 msg->header.correction,
 				 0);
 		port->last_sync = NULL;
+		ptp_msg_unref(port->last_sync_fup);
 		return;
 	}
 
@@ -394,23 +387,26 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 	resp = ptp_msg_allocate();
 	if (!resp) {
 		LOG_ERR("Couldn't allocate memory for the message");
-		return -1;
+		return -ENOMEM;
 	}
 
-	resp->header.version = PTP_VERSION;
-	resp->header.msg_length = sizeof(struct ptp_delay_resp_msg);
-	resp->header.src_port_id = port->port_ds.id;
+	resp->header.version	      = PTP_VERSION;
+	resp->header.src_port_id      = port->port_ds.id;
 	resp->header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
-	resp->header.sequence_id = msg->header.sequence_id++;
-	resp->header.req_port_id = msg->header.src_port_id;
+	resp->header.type	      = PTP_MSG_DELAY_RESP;
+	resp->header.msg_length	      = sizeof(struct ptp_delay_resp_msg);
+	resp->header.sequence_id      = msg->header.sequence_id++;
+	resp->header.req_port_id      = msg->header.src_port_id;
 
-	if (msg->header.flags && PTP_MSG_UNICAST_FLAG) {
+	if (msg->header.flags[0] && PTP_MSG_UNICAST_FLAG) {
 		// do stuff specific for unicast message
 		resp->header.flags[0] |= PTP_MSG_UNICAST_FLAG;
 		resp->header.log_msg_interval = DEFAULT_LOG_MSG_INTERVAL;
 	}
 
-	ptp_port_send(port, resp);
+	port_msg_send(port, resp);
+
+	return 0;
 }
 
 static void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
@@ -421,6 +417,64 @@ static void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *m
 static void port_signalling_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 
+}
+
+static int port_announce_msg_transmit(struct ptp_port *port)
+{
+	struct ptp_clock *clock = port->clock;
+	struct ptp_msg *msg = ptp_msg_allocate();
+
+	if (!msg) {
+		LOG_ERR("Couldn't allocate memory for an Announce message");
+		return -ENOMEM;
+	}
+
+	msg->header.type	     = PTP_MSG_ANNOUNCE;
+	msg->header.version	     = PTP_VERSION;
+	msg->header.msg_length	     = sizeof(struct ptp_msg_announce);
+	msg->header.domain_number    = clock->default_ds.domain;
+	msg->header.flags[1]	     = clock->time_prop_ds.flags;
+	msg->header.src_port_id	     = port->port_ds.id;
+	msg->header.sequence_id	     = port->seq_id.announce++;
+	msg->header.log_msg_interval = port->port_ds.log_sync_interval;
+
+	msg->announce.current_utc_offset = clock->time_prop_ds.current_utc_offset;
+	msg->announce.gm_priority1	 = clock->parent_ds.gm_priority1;
+	msg->announce.gm_clk_quality	 = clock->parent_ds.gm_clk_quality;
+	msg->announce.gm_priority2	 = clock->parent_ds.gm_priority2;
+	msg->announce.gm_id		 = clock->parent_ds.gm_id;
+	msg->announce.steps_rm		 = clock->current_ds.steps_rm;
+	msg->announce.time_src		 = clock->time_prop_ds.time_src;
+
+	port_msg_send(port, msg);
+
+	return 0;
+}
+
+static int port_sync_msg_transmit(struct ptp_port *port)
+{
+	struct ptp_clock *clock = port->clock;
+	struct ptp_msg *msg = ptp_msg_allocate();
+
+	if (!msg) {
+		LOG_ERR("Couldn't allocate memory for a Sync message");
+		return -ENOMEM;
+	}
+
+	msg->header.type	     = PTP_MSG_SYNC;
+	msg->header.version	     = PTP_VERSION;
+	msg->header.msg_length	     = sizeof(struct ptp_msg_sync);
+	msg->header.domain_number    = clock->default_ds.domain;
+	msg->header.flags[0]	     = PTP_MSG_TWO_STEP_FLAG;
+	msg->header.flags[1]	     = clock->time_prop_ds.flags;
+	msg->header.src_port_id	     = port->port_ds.id;
+	msg->header.sequence_id	     = port->seq_id.sync++;
+	msg->header.log_msg_interval = port->port_ds.log_sync_interval;
+
+	net_if_register_timestamp_cb(port->sync_ts_cb);
+	ptp_port_send_msg(port, msg);
+
+	return 0;
 }
 
 static void foreign_clock_cleanup(struct ptp_foreign_master_clock *foreign)
@@ -463,6 +517,50 @@ static void foreign_clock_cleanup(struct ptp_foreign_master_clock *foreign)
 		// TODO free memory for new message
 	}
 }
+
+static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_timer *timer)
+{
+	enum ptp_port_event event = PTP_EVT_NONE;
+
+	if ((timer == &port->announce_timer || timer == &port->sync_rx_timer) &&
+	    (port->announce_t_expierd || port->sync_rx_t_expierd)) {
+		LOG_DBG("Port %d - %s timeout", port->port_ds.id.port_number,
+			timer == &port->announce_timer ? "Announce" : "RX sync");
+		//
+		if (port->best) {
+			port_clear_foreign_clock_records(port->best);
+		}
+
+		port_set_announce_timeout(port);
+		port->announce_t_expierd = false;
+		port->sync_rx_t_expierd = false;
+		return PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES;
+	}
+
+	if (timer == &port->sync_tx_timer && port->sync_tx_t_expierd) {
+		LOG_DBG("Port %d - TX Sync timeout", port->port_ds.id.port_number);
+		port_set_sync_tx_timeout(port);
+		port->sync_tx_t_expierd = false;
+
+		return port_sync_msg_transmit(port) ? PTP_EVT_NONE : PTP_EVT_FAULT_DETECTED;
+	}
+
+	if (timer == &port->qualification_timer && port->qualification_t_expierd) {
+		LOG_DBG("Port %d - Qualification timeout", port->port_ds.id.port_number);
+		port->qualification_t_expierd = false;
+
+		return PTP_EVT_QUALIFICATION_TIMEOUT_EXPIRES;
+	}
+
+	if (timer == &port->master_announce_timer && port->master_announce_t_expired) {
+		LOG_DBG("Port %d - Master announce timeout", port->port_ds.id.port_number);
+		port_set_master_announce_timeout(port);
+		port->master_announce_t_expired = false;
+
+		return port_announce_msg_transmit(port) ? PTP_EVT_NONE : PTP_EVT_FAULT_DETECTED;
+	}
+
+	return event;
 
 void ptp_port_open(struct net_if *iface, void *user_data)
 {
@@ -526,11 +624,6 @@ void ptp_port_close(struct ptp_port *port)
 	k_free(port);
 }
 
-int ptp_port_send()
-{
-
-}
-
 enum ptp_port_state ptp_port_state(struct ptp_port *port)
 {
 	return port->port_ds.state;
@@ -572,20 +665,15 @@ struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port)
 	return port->best ? &port->best->dataset : NULL;
 }
 
-enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
+enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *timer)
 {
 	enum ptp_port_event event = PTP_EVT_NONE;
-	enum ptp_port_state
+	enum ptp_port_state prev_state = ptp_port_state(port);
 	struct ptp_msg *msg;
+	int ret;
 
-	if (port->announce_t_expierd) {
-		port->announce_t_expierd = false;
-		return PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES;
-	}
-
-	if (port->sync_tx_t_expierd &&
-	    ) {
-		port_sync_msg_transmit(port);
+	if (timer) {
+		return port_timers_process(port);
 	}
 
 	msg = ptp_msg_allocate();
@@ -602,7 +690,11 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port)
 		return PTP_EVT_FAULT_DETECTED;
 	}
 
-	ptp_msg_post_receive(msg, cnt);
+	ret = ptp_msg_post_receive(msg, cnt);
+	if (!ret) {
+		ptp_msg_unref(msg);
+		return PTP_EVT_FAULT_DETECTED;
+	}
 
 	if (port_ignore_msg(port, msg)) {
 		ptp_msg_unref(msg);

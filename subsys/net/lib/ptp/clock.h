@@ -109,12 +109,22 @@ void ptp_clock_pollfd_invalidate(struct ptp_clock *clock);
 /**
  * @brief Function resizing file descriptors array holding all sockets related to PTP Ports.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
- * @param[in] n_ports
+ * @param[in] clock   Pointer to the PTP Clock structure.
+ * @param[in] n_ports PTP Ports count.
  *
  * @return returns 0 if succesfull, negative otherwise.
  */
 int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports);
+
+/**
+ * @brief Get PTP Port from network interface.
+ *
+ * @param[in] iface Pointer to the network interface.
+ *
+ * @return Pointer to the PTP Port binded with given interface. If no PTP Port assigned
+ * to the interface NULL is returned.
+ */
+struct ptp_port *ptp_clock_get_port_from_iface(struct net_if *iface);
 
 /**
  * @brief Function updating Data Set storing Grandmaster information with the clock information.

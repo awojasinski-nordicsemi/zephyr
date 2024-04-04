@@ -20,6 +20,8 @@ extern "C" {
 
 #include <stdint.h>
 
+#include "msg.h"
+
 /**
  * @brief Type of TLV (time, lenght, value)
  *
@@ -46,6 +48,19 @@ enum ptp_tlv_type {
 	PTP_TLV_TYPE_CUMULATIVE_RATE_RATIO,
 	PTP_TLV_TYPE_PAD,
 	PTP_TLV_TYPE_AUTHENTICATION,
+};
+
+/**
+ * @brief PTP managenment message action field
+ *
+ * @note based on IEEE 1588-2019 Section 15.4.1.6 Table 57
+ */
+enum ptp_mgmt_op {
+	PTP_MGMT_GET,
+	PTP_MGMT_SET,
+	PTP_MGMT_RESP,
+	PTP_MGMT_CMD,
+	PTP_MGMT_ACK,
 };
 
 /**
@@ -113,6 +128,15 @@ struct ptp_tlv_mgmt {
 	uint16_t id;
 	uint8_t  data[0];
 };
+
+/**
+ * @brief Function for getting type of action to be taken on recipt of the PTP message.
+ *
+ * @param[in] msg Pointer to the PTP message.
+ *
+ * @return Type of action to be taken.
+ */
+enum ptp_mgmt_op ptp_mgmt_action_get(struct ptp_msg *msg);
 
 #ifdef __cplusplus
 }

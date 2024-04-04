@@ -9,37 +9,18 @@ LOG_MODULE_REGISTER(net_ptp_state_machine, CONFIG_PTP_LOG_LEVEL);
 
 #include "state_machine.h"
 
-#if CONFIG_NET_PTP_LOG_LEVEL >= LOG_LEVEL_DBG
-const char * const ptp_state_machine_state_str(enum ptp_port_state state)
-{
-	switch (state) {
-	case PTP_PS_INITIALIZING:
-		return "INITIALIZING";
-	case PTP_PS_FAULTY:
-		return "FAULTY";
-	case PTP_PS_DISABLED:
-		return "DISABLED";
-	case PTP_PS_LISTENING:
-		return "LISTENING";
-	case PTP_PS_PRE_MASTER:
-		return "PRE_MASTER";
-	case PTP_PS_MASTER:
-		return "MASTER";
-	case PTP_PS_GRAND_MASTER:
-		return "GRAND_MASTER";
-	case PTP_PS_PASSIVE:
-		return "PASSIVE";
-	case PTP_PS_UNCALIBRATED:
-		return "UNCALIBRATED";
-	case PTP_PS_SLAVE:
-		return "SLAVE";
-	}
-
-	return "<unknown>";
-}
-#else
-#define ptp_state_str(state) (NULL)
-#endif
+static const char * state_str[] = {
+	[PTP_PS_INITIALIZING] = "INITIALIZING",
+	[PTP_PS_FAULTY] = "FAULTY",
+	[PTP_PS_DISABLED] = "DISABLED",
+	[PTP_PS_LISTENING] = "LISTENING",
+	[PTP_PS_PRE_MASTER] = "PRE_MASTER",
+	[PTP_PS_MASTER] = "MASTER",
+	[PTP_PS_GRAND_MASTER] = "GRAND_MASTER",
+	[PTP_PS_PASSIVE] = "PASSIVE",
+	[PTP_PS_UNCALIBRATED] = "UNCALIBRATED",
+	[PTP_PS_SLAVE] = "SLAVE",
+};
 
 enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 				      enum ptp_port_event event,
@@ -48,7 +29,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 	enum ptp_port_state new_state = state;
 
 	if (event == PTP_EVT_INITIALIZE || event == PTP_EVT_POWERUP) {
-		/* initialize port data sets, HW and communication faciliries */
+		/* initialize port data sets, HW and communication facilities */
 		return PTP_PS_INITIALIZING;
 	}
 
@@ -272,6 +253,9 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 	default:
 		break;
 	}
+
+	LOG_DBG("State change to %s", state_str[new_state]);
+
 	return new_state;
 }
 
@@ -282,7 +266,7 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 	enum ptp_port_state new_state = state;
 
 	if (event == PTP_EVT_INITIALIZE || event == PTP_EVT_POWERUP) {
-		/* initialize port data sets, HW and communication faciliries */
+		/* initialize port data sets, HW and communication facilities */
 		return PTP_PS_INITIALIZING;
 	}
 
@@ -405,5 +389,8 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 	default:
 		break;
 	}
+
+	LOG_DBG("State change to %s", state_str[new_state]);
+
 	return new_state;
 }

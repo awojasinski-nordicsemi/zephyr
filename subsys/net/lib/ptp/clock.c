@@ -88,6 +88,21 @@ int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports)
 	return 0;
 }
 
+
+struct ptp_port *ptp_clock_get_port_from_iface(struct net_if *iface)
+{
+	struct ptp_clock *clock = &domain_clock;
+	struct ptp_port *port;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(clock->ports_list, port, node) {
+		if (port->iface == iface) {
+			return port;
+		}
+	}
+
+	return NULL;
+}
+
 void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 {
 	struct ptp_parent_ds old_parent = clock->parent_ds;
@@ -208,6 +223,23 @@ struct ptp_clock *ptp_clock_init(void)
 void ptp_clock_management_handle(struct ptp_msg *msg)
 {
 	struct ptp_tlv_mgmt *mgmt = msg->management.suffix;
+	enum ptp_mgmt_op action = ptp_mgmt_action_get(msg);
+
+	switch (action)
+	{
+	case PTP_MGMT_GET:
+		/* code */
+		break;
+	case PTP_MGMT_SET:
+		/* code */
+		break;
+	case PTP_MGMT_CMD:
+		/* code */
+		break;
+
+	default:
+		break;
+	}
 
 	/* only supported messages are */
 	switch(mgmt->id) {

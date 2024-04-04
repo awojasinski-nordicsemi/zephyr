@@ -35,11 +35,13 @@ struct ptp_port {
 	struct net_if			*iface;
 	int				socket;
 	struct k_timer			announce_timer;
+	struct k_timer			master_announce_timer;
 	struct k_timer			delay_timer;
 	struct k_timer			sync_rx_timer;
 	struct k_timer			sync_tx_timer;
 	struct k_timer			qualification_timer;
 	bool				announce_t_expierd;
+	bool				master_announce_t_expierd;
 	bool				delay_t_expierd;
 	bool				sync_rx_t_expierd;
 	bool				sync_tx_t_expierd;
@@ -121,12 +123,14 @@ struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port);
 
 /**
  * @brief Function generating PTP Port events based on PTP Port activity.
+ * When pointer to a timer is passed function doesn't chceck if any message has been received.
  *
- * @param[in] port Pointer to the PTP Port structure.
+ * @param[in] port  Pointer to the PTP Port structure.
+ * @param[in] timer Pointer to the PTP Port's timer to be checked.
  *
  * @return PTP Port event.
  */
-enum ptp_port_event ptp_port_event_gen(struct ptp_port *port);
+enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *timer);
 
 /**
  * @brief Function handling PTP Port event.
