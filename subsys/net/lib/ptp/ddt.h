@@ -92,6 +92,11 @@ struct ptp_tlv {
 	uint8_t  value[0];
 };
 
+struct ptp_tlv_container {
+	sys_snode_t node;
+	struct ptp_tlv *tlv;
+};
+
 /**
  * @brief Generic datatype for storing text in PTP messages.
  * @note 5.3.9 - holds textual content in PTP messages

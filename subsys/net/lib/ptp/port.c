@@ -9,6 +9,7 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdbool.h>
 
+#include <zephyr/net/net_if.h>
 #include <zephyr/net/ptp.h>
 #include <zephyr/net/socket.h>
 
@@ -167,6 +168,7 @@ static void port_qualification_timer_to(struct k_timer *timer)
 static void port_sync_timestamp_cb(struct net_pkt *pkt)
 {
 	struct ptp_port *port = ptp_clock_get_port_from_iface(pkt->iface);
+	struct ptp_clock *clock;
 
 	if (!port) {
 		return;
@@ -174,9 +176,28 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 
 	if (ptp_msg_type_get(ptp_msg_get_from_pkt(pkt)) == PTP_MSG_SYNC) {
 
+		struct ptp_msg *msg = ptp_msg_allocate();
+
+		if (!msg) {
+			LOG_ERR("Couldn't allocate memory for the message");
+		}
+
+		clock = port->clock;
+
+		msg->header.type	     = PTP_MSG_FOLLOW_UP;
+		msg->header.version	     = PTP_VERSION;
+		msg->header.msg_length	     = sizeof(struct ptp_follow_up_msg);
+		msg->header.domain_number    = clock->default_ds.domain;
+		msg->header.flags	     = clock->time_prop_ds.flags;
+		msg->header.src_port_id	     = port->port_ds.id;
+		msg->header.sequence_id	     = port->seq_id.sync;
+		msg->header.log_msg_interval = port->port_ds.log_sync_interval;
+
+		msg->follow_up.precise_origin_timestamp = //TODO get message from net_pkt ;
+
+		port_msg_send(port, msg);
 
 		port->sync_ts_cb_registered = false;
-
 		net_if_unregister_timestamp_cb(port->sync_ts_cb);
 	}
 }
@@ -201,7 +222,8 @@ static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 
 static int port_msg_send(struct ptp_port *port, struct ptp_msg *msg)
 {
-
+	ptp_msg_pre_send(port->clock, msg);
+	ptp_transport_send(port, msg);
 }
 
 static void port_state_transition(struct ptp_port *port, enum ptp_port_state next_state)
@@ -398,6 +420,10 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 	resp->header.sequence_id      = msg->header.sequence_id++;
 	resp->header.req_port_id      = msg->header.src_port_id;
 
+	// TODO handle timestamp properly
+	resp->delay_resp.receive_timestamp = msg->timestamp.host;
+	resp->delay_resp.req_port_id = msg->header.src_port_id;
+
 	if (msg->header.flags[0] && PTP_MSG_UNICAST_FLAG) {
 		// do stuff specific for unicast message
 		resp->header.flags[0] |= PTP_MSG_UNICAST_FLAG;
@@ -411,12 +437,46 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 
 static void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
+	enum ptp_port_state state = ptp_port_state(port);
+
+	if (state != PTP_PS_UNCALIBRATED && state != PTP_PS_SLAVE) {
+		return;
+	}
+
+	if (!ptp_port_id_eq(&msg->delay_resp.req_port_id, &port->port_ds.id)) {
+		// Message is not meant for this PTP Port
+		return;
+	}
+
 
 }
 
 static void port_signalling_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
+	const static struct ptp_port_id port_id_allones = {
+		.clk_id = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+		.port_number = 0xFFFF
+	};
+	enum ptp_port_state state = ptp_port_state(port);
+	struct ptp_tlv *tlv;
 
+	if (state == PTP_PS_INITIALIZING || state == PTP_PS_DISABLED || state == PTP_PS_FAULTY) {
+		return;
+	}
+
+	if ((!memcmp(&msg->signaling.target_port_id.clk_id,
+		     &port_id_allones.clk_id,
+		     sizeof(ptp_clk_id)) &&
+	     !memcmp(&msg->signaling.target_port_id.clk_id,
+		     &port->port_ds.id.clk_id,
+		     sizeof(ptp_clk_id))) ||
+	    (msg->signaling.target_port_id.port_number != port_id_allones.port_number &&
+	     msg->signaling.target_port_id.port_number != port->port_ds.id.port_number)) {
+		// Message is not meant for this PTP Port
+		return;
+	}
+
+	SYS_SLIST_FOR_EACH_NODE()
 }
 
 static int port_announce_msg_transmit(struct ptp_port *port)
@@ -471,8 +531,13 @@ static int port_sync_msg_transmit(struct ptp_port *port)
 	msg->header.sequence_id	     = port->seq_id.sync++;
 	msg->header.log_msg_interval = port->port_ds.log_sync_interval;
 
-	net_if_register_timestamp_cb(port->sync_ts_cb);
-	ptp_port_send_msg(port, msg);
+	net_if_register_timestamp_cb(&port->sync_ts_cb,
+				     NULL,
+				     port->iface,
+				     port_sync_timestamp_cb);
+
+	port_msg_send(port, msg);
+	ptp_msg_unref(msg);
 
 	return 0;
 }

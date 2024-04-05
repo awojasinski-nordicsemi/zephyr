@@ -15,6 +15,7 @@ LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 #include "clock.h"
 #include "msg.h"
 #include "port.h"
+#include "tlv.h"
 
 #define PTP_MSG_POOL 10
 
@@ -30,6 +31,121 @@ struct msg_container {
 };
 
 struct msg_container msg_pool[PTP_MSG_POOL];
+
+static int msg_tlv_post_recv(struct ptp_tlv *tlv)
+{
+	int ret = 0;
+	struct ptp_tlv_mgmt *mgmt;
+	enum ptp_tlv_type type = ptp_tlv_type_get(tlv);
+
+	switch (type) {
+	case PTP_TLV_TYPE_MANAGEMENT:
+		mgmt = (struct ptp_tlv_mgmt *)tlv;
+		mgmt->id = ntohs(mgmt->id);
+		break;
+	case PTP_TLV_TYPE_MANAGEMENT_ERROR_STATUS:
+		break;
+	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION:
+		break;
+	case PTP_TLV_TYPE_REQUEST_UNICAST_TRANSMISSION:
+	case PTP_TLV_TYPE_GRANT_UNICAST_TRANSMISSION:
+	case PTP_TLV_TYPE_CANCEL_UNICAST_TRANSMISSION:
+	case PTP_TLV_TYPE_ACKNOWLEDGE_CANCEL_UNICAST_TRANSMISSION:
+
+		break;
+	case PTP_TLV_TYPE_PATH_TRACE:
+		break;
+	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION_PROPAGATE:
+		break;
+	case PTP_TLV_TYPE_ENHANCED_ACCURACY_METRICS:
+		break;
+	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION_DO_NOT_PROPAGATE:
+		break;
+	case PTP_TLV_TYPE_L1_SYNC:
+		break;
+	case PTP_TLV_TYPE_PORT_COMMUNICATION_AVAILABILITY:
+		break;
+	case PTP_TLV_TYPE_PROTOCOL_ADDRESS:
+		break;
+	case PTP_TLV_TYPE_SLAVE_RX_SYNC_TIMING_DATA:
+		break;
+	case PTP_TLV_TYPE_SLAVE_RX_SYNC_COMPUTED_DATA:
+		break;
+	case PTP_TLV_TYPE_SLAVE_TX_EVENT_TIMESTAMPS:
+		break;
+	case PTP_TLV_TYPE_CUMULATIVE_RATE_RATIO:
+		break;
+	case PTP_TLV_TYPE_PAD:
+		break;
+	case PTP_TLV_TYPE_AUTHENTICATION:
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+static int msg_tlv_organize(struct ptp_msg *msg, int lenght)
+{
+	uint8_t *suffix;
+	int suffix_len;
+	struct ptp_tlv_container *tlv_container;
+	enum ptp_msg_type type = ptp_msg_type_get(msg);
+
+	switch (type) {
+	case PTP_MSG_SYNC:
+		suffix = msg->sync.suffix;
+		break;
+	case PTP_MSG_DELAY_REQ:
+		suffix = msg->delay_req.suffix;
+		break;
+	case PTP_MSG_PDELAY_REQ:
+		suffix = msg->pdelay_req.suffix;
+		break;
+	case PTP_MSG_PDELAY_RESP:
+		suffix = msg->pdelay_resp.suffix;
+		break;
+	case PTP_MSG_FOLLOW_UP:
+		suffix = msg->follow_up.suffix;
+		break;
+	case PTP_MSG_DELAY_RESP:
+		suffix = msg->delay_resp.suffix;
+		break;
+	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
+		suffix = msg->pdelay_resp_follow_up.suffix;
+		break;
+	case PTP_MSG_ANNOUNCE:
+		suffix = msg->announce.suffix;
+		break;
+	case PTP_MSG_SIGNALING:
+		suffix = msg->signaling.suffix;
+		break;
+	case PTP_MSG_MANAGEMENT:
+		suffix = msg->management.suffix;
+		break;
+	}
+
+	if (!suffix) {
+		LOG_DBG("No TLV attached to the message");
+		return 0;
+	}
+
+	while (lenght >= sizeof(struct ptp_tlv)) {
+		tlv_container = ptp_tlv_allocate();
+		if(!tlv_container) {
+			LOG_ERR("Couldn't allocate memory for TLV");
+			return -ENOMEM;
+		}
+
+		tlv_container->tlv = (struct ptp_tlv*)suffix;
+		tlv_container->tlv->type = ntohs(tlv_container->tlv->type);
+		tlv_container->tlv->length = ntohs(tlv_container->tlv->length);
+
+		msg_tlv_post_recv(tlv_container->tlv);
+
+	}
+}
 
 static void msg_timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timestamp *ts)
 {
@@ -188,9 +304,23 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 
 int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 {
-	int msg_size = 0;
+	enum ptp_msg_type type = ptp_msg_type_get(msg);
+	int tlv_len;
+	static const int msg_size[] = {
+		[PTP_MSG_SYNC]		        = sizeof(struct ptp_sync_msg),
+		[PTP_MSG_DELAY_REQ]	        = sizeof(struct ptp_delay_req_msg),
+		[PTP_MSG_PDELAY_REQ]	        = sizeof(struct ptp_pdelay_req_msg),
+		[PTP_MSG_PDELAY_RESP]	        = sizeof(struct ptp_pdelay_resp_msg),
+		[PTP_MSG_FOLLOW_UP]	        = sizeof(struct ptp_follow_up_msg),
+		[PTP_MSG_DELAY_RESP]	        = sizeof(struct ptp_delay_resp_msg),
+		[PTP_MSG_PDELAY_RESP_FOLLOW_UP] = sizeof(struct ptp_pdelay_resp_follow_up_msg),
+		[PTP_MSG_ANNOUNCE]	        = sizeof(struct ptp_announce_msg),
+		[PTP_MSG_SIGNALING]	        = sizeof(struct ptp_signaling_msg),
+		[PTP_MSG_MANAGEMENT]	        = sizeof(struct ptp_management_msg),
+	};
 
-	if (cnt < sizeof(struct ptp_header)) {
+	if (msg_size[type] > cnt) {
+		LOG_ERR();
 		return -1;
 	}
 
@@ -198,44 +328,6 @@ int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 		return -1;
 	}
 
-	enum ptp_msg_type type = ptp_msg_type_get(msg);
-
-	switch (type) {
-	case PTP_MSG_SYNC:
-		msg_size = sizeof(struct ptp_sync_msg);
-		break;
-	case PTP_MSG_DELAY_REQ:
-		msg_size = sizeof(struct ptp_delay_req_msg);
-		break;
-	case PTP_MSG_PDELAY_REQ:
-		msg_size = sizeof(struct ptp_pdelay_req_msg);
-		break;
-	case PTP_MSG_PDELAY_RESP:
-		msg_size = sizeof(struct ptp_pdelay_resp_msg);
-		break;
-	case PTP_MSG_FOLLOW_UP:
-		msg_size = sizeof(struct ptp_follow_up_msg);
-		break;
-	case PTP_MSG_DELAY_RESP:
-		msg_size = sizeof(struct ptp_delay_resp_msg);
-		break;
-	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
-		msg_size = sizeof(struct ptp_pdelay_resp_follow_up_msg);
-		break;
-	case PTP_MSG_ANNOUNCE:
-		msg_size = sizeof(struct ptp_announce_msg);
-		break;
-	case PTP_MSG_SIGNALING:
-		msg_size = sizeof(struct ptp_signaling_msg);
-		break;
-	case PTP_MSG_MANAGEMENT:
-		msg_size = sizeof(struct ptp_management_msg);
-		break;
-	}
-
-	if (msg_size > cnt) {
-		return -1;
-	}
 
 	switch (type) {
 	case PTP_MSG_SYNC:
@@ -273,6 +365,18 @@ int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 	case PTP_MSG_MANAGEMENT:
 		msg_port_id_post_recv(&msg->management.target_port_id);
 		break;
+	}
+
+	tlv_len = msg_tlv_organize(msg, cnt - msg_size[type]);
+
+	if (tlv_len < 0) {
+		LOG_ERR("Failed processing TLVs");
+		return -1;
+	}
+
+	if (msg_size[type] + tlv_len != msg->header.msg_length) {
+		LOG_ERR("Length and TLVs don't correspond to the length specified in the message");
+		return -1;
 	}
 
 	return 0;

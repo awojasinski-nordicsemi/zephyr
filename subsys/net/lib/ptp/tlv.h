@@ -138,6 +138,15 @@ struct ptp_tlv_mgmt {
  */
 enum ptp_mgmt_op ptp_mgmt_action_get(struct ptp_msg *msg);
 
+/**
+ * @brief
+ *
+ * @param[in]
+ *
+ * @return Type of TLV message.
+ */
+enum ptp_tlv_type ptp_tlv_type_get(struct ptp_tlv *tlv);
+
 #ifdef __cplusplus
 }
 #endif

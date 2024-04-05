@@ -17,3 +17,7 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 enum ptp_mgmt_op ptp_mgmt_action_get(struct ptp_msg *msg) {
 	(enum ptp_mgmt_op)msg->management.action;
 }
+
+enum ptp_tlv_type ptp_tlv_type_get(struct ptp_tlv *tlv) {
+	(enum ptp_tlv_type)tlv->type;
+}

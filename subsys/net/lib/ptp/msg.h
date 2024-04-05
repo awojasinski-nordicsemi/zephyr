@@ -202,6 +202,7 @@ struct ptp_msg {
 	} timestamp;
 	int ref;
 	struct sockaddr addr;
+	sys_slist_t tlvs;
 };
 
 /**

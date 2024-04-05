@@ -58,8 +58,8 @@ struct ptp_port {
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			foreign_list;
 	struct net_pkt			*last_sync_fup;
-	net_if_timestamp_callback_t	sync_ts_cb;
-	net_if_timestamp_callback_t	pdelay_resp_ts_cb;
+	struct net_if_timestamp_cb 	sync_ts_cb;
+	struct net_if_timestamp_cb 	pdelay_resp_ts_cb;
 	bool				sync_ts_cb_registered;
 	bool				pdelay_resp_ts_cb_registered;
 };
@@ -123,7 +123,7 @@ struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port);
 
 /**
  * @brief Function generating PTP Port events based on PTP Port activity.
- * When pointer to a timer is passed function doesn't chceck if any message has been received.
+ * When pointer to a timer is passed function doesn't chceck if any message has been
  *
  * @param[in] port  Pointer to the PTP Port structure.
  * @param[in] timer Pointer to the PTP Port's timer to be checked.
