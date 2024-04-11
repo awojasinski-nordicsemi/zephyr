@@ -95,6 +95,7 @@ struct ptp_tlv {
 struct ptp_tlv_container {
 	sys_snode_t node;
 	struct ptp_tlv *tlv;
+	struct ptp_tlv_mgmt_clock_desc clock_desc;
 };
 
 /**

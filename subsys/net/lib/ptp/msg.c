@@ -32,68 +32,13 @@ struct msg_container {
 
 struct msg_container msg_pool[PTP_MSG_POOL];
 
-static int msg_tlv_post_recv(struct ptp_tlv *tlv)
-{
-	int ret = 0;
-	struct ptp_tlv_mgmt *mgmt;
-	enum ptp_tlv_type type = ptp_tlv_type_get(tlv);
-
-	switch (type) {
-	case PTP_TLV_TYPE_MANAGEMENT:
-		mgmt = (struct ptp_tlv_mgmt *)tlv;
-		mgmt->id = ntohs(mgmt->id);
-		break;
-	case PTP_TLV_TYPE_MANAGEMENT_ERROR_STATUS:
-		break;
-	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION:
-		break;
-	case PTP_TLV_TYPE_REQUEST_UNICAST_TRANSMISSION:
-	case PTP_TLV_TYPE_GRANT_UNICAST_TRANSMISSION:
-	case PTP_TLV_TYPE_CANCEL_UNICAST_TRANSMISSION:
-	case PTP_TLV_TYPE_ACKNOWLEDGE_CANCEL_UNICAST_TRANSMISSION:
-
-		break;
-	case PTP_TLV_TYPE_PATH_TRACE:
-		break;
-	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION_PROPAGATE:
-		break;
-	case PTP_TLV_TYPE_ENHANCED_ACCURACY_METRICS:
-		break;
-	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION_DO_NOT_PROPAGATE:
-		break;
-	case PTP_TLV_TYPE_L1_SYNC:
-		break;
-	case PTP_TLV_TYPE_PORT_COMMUNICATION_AVAILABILITY:
-		break;
-	case PTP_TLV_TYPE_PROTOCOL_ADDRESS:
-		break;
-	case PTP_TLV_TYPE_SLAVE_RX_SYNC_TIMING_DATA:
-		break;
-	case PTP_TLV_TYPE_SLAVE_RX_SYNC_COMPUTED_DATA:
-		break;
-	case PTP_TLV_TYPE_SLAVE_TX_EVENT_TIMESTAMPS:
-		break;
-	case PTP_TLV_TYPE_CUMULATIVE_RATE_RATIO:
-		break;
-	case PTP_TLV_TYPE_PAD:
-		break;
-	case PTP_TLV_TYPE_AUTHENTICATION:
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static int msg_tlv_organize(struct ptp_msg *msg, int lenght)
+static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 {
 	uint8_t *suffix;
-	int suffix_len;
+	int suffix_len, ret = 0;
 	struct ptp_tlv_container *tlv_container;
-	enum ptp_msg_type type = ptp_msg_type_get(msg);
 
-	switch (type) {
+	switch (ptp_msg_type_get(msg)) {
 	case PTP_MSG_SYNC:
 		suffix = msg->sync.suffix;
 		break;
@@ -134,7 +79,6 @@ static int msg_tlv_organize(struct ptp_msg *msg, int lenght)
 	while (lenght >= sizeof(struct ptp_tlv)) {
 		tlv_container = ptp_tlv_allocate();
 		if(!tlv_container) {
-			LOG_ERR("Couldn't allocate memory for TLV");
 			return -ENOMEM;
 		}
 
@@ -142,8 +86,48 @@ static int msg_tlv_organize(struct ptp_msg *msg, int lenght)
 		tlv_container->tlv->type = ntohs(tlv_container->tlv->type);
 		tlv_container->tlv->length = ntohs(tlv_container->tlv->length);
 
-		msg_tlv_post_recv(tlv_container->tlv);
+		if (tlv_container->tlv->length % 2) {
+			/* IEEE 1588-2019 Section 5.3.8 - length is an even number */
+			LOG_ERR("Incorrect length of TLV");
+			ptp_tlv_free(tlv_container);
+			return -EBADMSG;
+		}
 
+		lenght -= sizeof(struct ptp_tlv);
+		suffix += sizeof(struct ptp_tlv);
+		suffix_len += sizeof(struct ptp_tlv);
+
+		if (tlv_container->tlv->length > lenght) {
+			LOG_ERR("Incorrect length of TLV");
+			ptp_tlv_free(tlv_container);
+			return -EBADMSG;
+		}
+
+		lenght -+ tlv_container->tlv->length;
+		suffix += tlv_container->tlv->length;
+		suffix_len += tlv_container->tlv->length;
+
+		ret = ptp_tlv_post_recv(tlv_container->tlv);
+		if (ret) {
+			ptp_tlv_free(tlv_container);
+			return ret;
+		}
+
+		sys_slist_append(&msg->tlvs, &tlv_container->node);
+	}
+}
+
+static void msg_tlv_postprocess(struct ptp_msg *msg)
+{
+	struct ptp_tlv_container *tlv_container;
+
+	SYS_SLIST_FOR_EACH_CONTAINER(msg->tlvs, tlv_container, node) {
+		ptp_tlv_pre_send(tlv_container->tlv);
+	}
+
+	/* No need to track TLVs attached to the message. */
+	SYS_SLIST_FOR_EACH_CONTAINER(msg->tlvs, tlv_container, node) {
+		ptp_tlv_free(tlv_container);
 	}
 }
 
@@ -208,11 +192,11 @@ struct ptp_msg *ptp_msg_allocate(void)
 	}
 
 	if (!msg) {
-		LOG_ERR("Cannot allocate space for message");
+		LOG_ERR("Couldn't allocate memory for the message");
 		return NULL;
 	}
 
-	return;
+	return msg;
 }
 
 void ptp_msg_unref(struct ptp_msg *msg)
@@ -221,7 +205,13 @@ void ptp_msg_unref(struct ptp_msg *msg)
 		msg->ref--;
 
 		if (msg->ref == 0) {
+			struct ptp_tlv_container *tlv_container;
 			msg_container *container = CONTAINER_OF(msg, struct msg_container, msg);
+
+			SYS_SLIST_FOR_EACH_CONTAINER(msg->tlvs, tlv_container, node) {
+			ptp_tlv_free(tlv_container);
+			}
+
 			memset(container, 0, sizeof(*container));
 		}
 	}
@@ -258,11 +248,9 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)
 
 int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 {
-	enum ptp_msg_type type = ptp_msg_type_get(msg);
-
 	msg_header_pre_send(&msg->header);
 
-	switch (type) {
+	switch (ptp_msg_type_get(msg)) {
 	case PTP_MSG_SYNC:
 		break;
 	case PTP_MSG_DELAY_REQ:
@@ -299,13 +287,12 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 		break;
 	}
 
+	msg_tlv_postprocess(msg);
 	return 0;
 }
 
 int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 {
-	enum ptp_msg_type type = ptp_msg_type_get(msg);
-	int tlv_len;
 	static const int msg_size[] = {
 		[PTP_MSG_SYNC]		        = sizeof(struct ptp_sync_msg),
 		[PTP_MSG_DELAY_REQ]	        = sizeof(struct ptp_delay_req_msg),
@@ -318,16 +305,18 @@ int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 		[PTP_MSG_SIGNALING]	        = sizeof(struct ptp_signaling_msg),
 		[PTP_MSG_MANAGEMENT]	        = sizeof(struct ptp_management_msg),
 	};
+	enum ptp_msg_type type = ptp_msg_type_get(msg);
+	int tlv_len;
 
 	if (msg_size[type] > cnt) {
-		LOG_ERR();
-		return -1;
+		LOG_ERR("Received message with incorrect lenght");
+		return -EBADMSG;
 	}
 
 	if (msg_header_post_recv(&msg->header)) {
-		return -1;
+		LOG_ERR("Received message incomplient with supported PTP version");
+		return -EBADMSG;
 	}
-
 
 	switch (type) {
 	case PTP_MSG_SYNC:
@@ -367,15 +356,15 @@ int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 		break;
 	}
 
-	tlv_len = msg_tlv_organize(msg, cnt - msg_size[type]);
+	tlv_len = msg_tlv_preprocess(msg, cnt - msg_size[type]);
 
 	if (tlv_len < 0) {
 		LOG_ERR("Failed processing TLVs");
-		return -1;
+		return -EBADMSG;
 	}
 
 	if (msg_size[type] + tlv_len != msg->header.msg_length) {
-		LOG_ERR("Length and TLVs don't correspond to the length specified in the message");
+		LOG_ERR("Length and TLVs don't correspond with specified in the message");
 		return -1;
 	}
 

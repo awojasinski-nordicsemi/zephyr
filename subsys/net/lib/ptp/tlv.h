@@ -122,12 +122,85 @@ enum ptp_mgmt_id {
 	PTP_MGMT_LOG_MIN_PDELAY_REQ_INTERVAL,
 };
 
+/**
+ * @brief PAD TLV - used to increase length of any PTP message.
+ *
+ * @note 14.4.2 - PAD TLV
+ */
+struct ptp_tlv_pad {
+	uint16_t type;
+	uint16_t length;
+	uint8_t  pad[0];
+};
+
+/**
+ * @brief Organization-specific TLV.
+ *
+ * @note 14.3.2 - Vendor and standard organization extension TLVs.
+ */
+struct ptp_tlv_org {
+	uint16_t type;
+	uint16_t length;
+	uint8_t  id[3];
+	uint8_t  subtype[3];
+	uint8_t  data[0];
+};
+
+/**
+ * @brief Management TLV.
+ *
+ * @note 15.5.2 - MANAGEMENT TLV field format.
+ */
 struct ptp_tlv_mgmt {
 	uint16_t type;
 	uint16_t length;
 	uint16_t id;
 	uint8_t  data[0];
 };
+
+/**
+ * @brief Management error status TLV.
+ *
+ * @note 15.5.4 - MANAGEMENT_ERROR_STATUS TLV format.
+ */
+struct ptp_tlv_mgmt_err {
+	uint16_t type;
+	uint16_t length;
+	uint16_t err_id;
+	uint16_t id;
+	uint32_t reserved;
+	struct ptp_text display_data;
+}
+
+/**
+ * @brief
+*/
+struct ptp_tlv_mgmt_clock_desc {
+	uint16_t *type;
+	struct ptp_text *phy_protocol;
+	uint16_t *phy_addr_len;
+	uint8_t *phy_addr;
+	struct ptp_port_addr *protocol_addr;
+	uint8_t *manufacturer_id;
+	struct ptp_text *product_desc;
+	struct ptp_text *revision_data;
+	struct ptp_text *user_desc;
+	uint8_t *profile_id;
+};
+
+/**
+ * @brief Function allocating memory for TLV container structure.
+ *
+ * @return Pointer to the TLV container structure.
+ */
+struct ptp_tlv_container *ptp_tlv_alloc(void);
+
+/**
+ * @brief Function freeing memory used by TLV container.
+ *
+ * @param[in] tlv_container Pointer to the TLV container structure.
+ */
+void ptp_tlv_free(struct ptp_tlv_container *tlv_container);
 
 /**
  * @brief Function for getting type of action to be taken on recipt of the PTP message.
@@ -146,6 +219,22 @@ enum ptp_mgmt_op ptp_mgmt_action_get(struct ptp_msg *msg);
  * @return Type of TLV message.
  */
 enum ptp_tlv_type ptp_tlv_type_get(struct ptp_tlv *tlv);
+
+/**
+ * @brief Function processing TLV after reception, and before processing by PTP stack.
+ *
+ * @param[in] tlv
+ *
+ * @return Zero on success, othervise negative.
+*/
+int ptp_tlv_post_recv(struct ptp_tlv *tlv);
+
+/**
+ * @brief
+ *
+ * @param[in] tlv
+ */
+void ptp_tlv_pre_send(struct ptp_tlv *tlv);
 
 #ifdef __cplusplus
 }

@@ -179,7 +179,7 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 		struct ptp_msg *msg = ptp_msg_allocate();
 
 		if (!msg) {
-			LOG_ERR("Couldn't allocate memory for the message");
+			return;
 		}
 
 		clock = port->clock;
@@ -408,7 +408,6 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 	// TODO prepare delay_resp message
 	resp = ptp_msg_allocate();
 	if (!resp) {
-		LOG_ERR("Couldn't allocate memory for the message");
 		return -ENOMEM;
 	}
 
@@ -485,7 +484,6 @@ static int port_announce_msg_transmit(struct ptp_port *port)
 	struct ptp_msg *msg = ptp_msg_allocate();
 
 	if (!msg) {
-		LOG_ERR("Couldn't allocate memory for an Announce message");
 		return -ENOMEM;
 	}
 
@@ -517,7 +515,6 @@ static int port_sync_msg_transmit(struct ptp_port *port)
 	struct ptp_msg *msg = ptp_msg_allocate();
 
 	if (!msg) {
-		LOG_ERR("Couldn't allocate memory for a Sync message");
 		return -ENOMEM;
 	}
 
@@ -743,7 +740,6 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *ti
 
 	msg = ptp_msg_allocate();
 	if (!msg) {
-		LOG_ERR("Couldn't allocate memory for incoming PTP message");
 		return PTP_EVT_FAULT_DETECTED;
 	}
 
@@ -755,8 +751,8 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *ti
 		return PTP_EVT_FAULT_DETECTED;
 	}
 
-	ret = ptp_msg_post_receive(msg, cnt);
-	if (!ret) {
+	ret = ptp_msg_post_recv(msg, cnt);
+	if (ret) {
 		ptp_msg_unref(msg);
 		return PTP_EVT_FAULT_DETECTED;
 	}

@@ -223,9 +223,8 @@ struct ptp_clock *ptp_clock_init(void)
 void ptp_clock_management_handle(struct ptp_msg *msg)
 {
 	struct ptp_tlv_mgmt *mgmt = msg->management.suffix;
-	enum ptp_mgmt_op action = ptp_mgmt_action_get(msg);
 
-	switch (action)
+	switch (ptp_mgmt_action_get(msg))
 	{
 	case PTP_MGMT_GET:
 		/* code */
