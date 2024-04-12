@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -411,13 +411,13 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 		return -ENOMEM;
 	}
 
-	resp->header.version	      = PTP_VERSION;
-	resp->header.src_port_id      = port->port_ds.id;
-	resp->header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
 	resp->header.type	      = PTP_MSG_DELAY_RESP;
+	resp->header.version	      = PTP_VERSION;
 	resp->header.msg_length	      = sizeof(struct ptp_delay_resp_msg);
+	resp->header.domain_number    = port->clock->default_ds.domain;
+	resp->header.src_port_id      = port->port_ds.id;
 	resp->header.sequence_id      = msg->header.sequence_id++;
-	resp->header.req_port_id      = msg->header.src_port_id;
+	resp->header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
 
 	// TODO handle timestamp properly
 	resp->delay_resp.receive_timestamp = msg->timestamp.host;
@@ -430,6 +430,7 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 	}
 
 	port_msg_send(port, resp);
+	ptp_msg_unref(msg);
 
 	return 0;
 }
@@ -450,7 +451,7 @@ static void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *m
 
 }
 
-static void port_signalling_msg_process(struct ptp_port *port, struct ptp_msg *msg)
+static void port_signaling_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	const static struct ptp_port_id port_id_allones = {
 		.clk_id = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
@@ -471,11 +472,13 @@ static void port_signalling_msg_process(struct ptp_port *port, struct ptp_msg *m
 		     sizeof(ptp_clk_id))) ||
 	    (msg->signaling.target_port_id.port_number != port_id_allones.port_number &&
 	     msg->signaling.target_port_id.port_number != port->port_ds.id.port_number)) {
+
 		// Message is not meant for this PTP Port
+		ptp_msg_unref(msg);
 		return;
 	}
 
-	SYS_SLIST_FOR_EACH_NODE()
+	SYS_SLIST_FOR_EACH_CONTAINER()
 }
 
 static int port_announce_msg_transmit(struct ptp_port *port)
@@ -537,6 +540,40 @@ static int port_sync_msg_transmit(struct ptp_port *port)
 	ptp_msg_unref(msg);
 
 	return 0;
+}
+
+static struct ptp_msg *port_management_resp_prepare(struct ptp_port *port,
+						    struct ptp_msg *req)
+{
+	struct ptp_msg *resp = ptp_msg_allocate();
+
+	if (!resp) {
+		return NULL;
+	}
+
+	resp->header.type = PTP_MSG_MANAGEMENT;
+	resp->header.version = PTP_VERSION;
+	resp->header.msg_length = sizeof(struct ptp_management_msg);
+	resp->header.domain_number = port->clock->default_ds.domain;
+	resp->header.src_port_id = port->port_ds.id;
+	resp->header.sequence_id = req->header.sequence_id;
+	resp->header.log_msg_interval = port->port_ds.log_min_delay_req_interval;
+
+	if (req->management.action == PTP_MGMT_GET || req->management.action == PTP_MGMT_SET) {
+		resp->management.action = PTP_MGMT_RESP;
+	} else if (req->management.action == PTP_MGMT_CMD) {
+		resp->management.action = PTP_MGMT_ACK;
+	}
+
+	if (req->header.src_port_id) {
+		resp->management.target_port_id = req->header.src_port_id;
+	}
+
+	resp->management.starting_boundry_hops = req->management.starting_boundry_hops -
+						 req->management.boundry_hops;
+	resp->management.boundry_hops = resp->management.starting_boundry_hop;
+
+	return resp;
 }
 
 static void foreign_clock_cleanup(struct ptp_foreign_master_clock *foreign)
@@ -751,7 +788,7 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *ti
 		return PTP_EVT_FAULT_DETECTED;
 	}
 
-	ret = ptp_msg_post_recv(msg, cnt);
+	ret = ptp_msg_post_recv(port,msg, cnt);
 	if (ret) {
 		ptp_msg_unref(msg);
 		return PTP_EVT_FAULT_DETECTED;
@@ -771,10 +808,10 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *ti
 		port_delay_req_msg_process(port, msg);
 		break;
 	case PTP_MSG_PDELAY_REQ:
-		/* code */
-		break;
 	case PTP_MSG_PDELAY_RESP:
-		/* code */
+	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
+		// TODO implement P2P delay machanism
+		ptp_msg_unref(msg);
 		break;
 	case PTP_MSG_FOLLOW_UP:
 		port_follow_up_msg_process(port, msg);
@@ -782,19 +819,18 @@ enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *ti
 	case PTP_MSG_DELAY_RESP:
 		port_delay_resp_msg_process(port, msg);
 		break;
-	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
-		/* code */
-		break;
 	case PTP_MSG_ANNOUNCE:
 		if (port_announce_msg_process(port, msg)) {
 			event = PTP_EVT_STATE_DECISION;
 		}
 		break;
 	case PTP_MSG_SIGNALING:
-		port_sygnalling_msg_process(port, msg);
+		port_signaling_msg_process(port, msg);
 		break;
 	case PTP_MSG_MANAGEMENT:
-		port_mgmt_msg_process(port, msg);
+		if (ptp_clock_management_process(port, msg)) {
+			return PTP_EVT_STATE_DECISION;
+		}
 		break;
 	default:
 		break;
@@ -911,4 +947,33 @@ int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)
 	}
 
 	return 0;
+}
+
+int ptp_port_management_error(struct ptp_port *port, struct ptp_msg *msg, enum ptp_mgmt_err err)
+{
+	struct ptp_tlv *tlv;
+	struct ptp_tlv_mgmt_err *mgmt_err;
+	struct ptp_tlv_mgmt *mgmt = (struct ptp_tlv_mgmt *)msg->management.suffix;
+
+	struct ptp_msg *resp = port_management_resp_prepare(port, msg);
+
+	if (!resp) {
+		return -ENOMEM;
+	}
+
+	tlv = ptp_msg_add_tlv(msg, sizeof(struct ptp_tlv_mgmt_err));
+
+	if (!tlv) {
+		ptp_msg_unref(resp);
+		return -ENOMEM;
+	}
+
+	mgmt_err = (struct ptp_tlv_mgmt_err *)tlv;
+
+	mgmt_err->type = PTP_TLV_TYPE_MANAGEMENT_ERROR_STATUS;
+	mgmt_err->length = 8;
+	mgmt_err->error = err;
+	mgmt_err->id = mgmt->id;
+
+	port_msg_send(resp);
 }

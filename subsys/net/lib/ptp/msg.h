@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -173,6 +173,7 @@ struct ptp_management_msg {
 	struct ptp_header  hdr;
 	struct ptp_port_id target_port_id;
 	uint8_t		   starting_boundry_hops;
+	uint8_t		   boundry_hops;
 	uint8_t		   action:5;
 	uint8_t		   reserved;
 	uint8_t		   suffix[0];
@@ -285,12 +286,23 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg);
 /**
  * @brief Function preparing message for further processing after reception.
  *
- * @param[in] msg Pointer to the received PTP message.
- * @param[in] cnt Length of the message in bytes.
+ * @param[in] port Pointer to the PTP Port instance.
+ * @param[in] msg  Pointer to the received PTP message.
+ * @param[in] cnt  Length of the message in bytes.
  *
  * @return
  */
-int ptp_msg_post_recv(struct ptp_msg *msg, int cnt);
+int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt);
+
+/**
+ * @brief Function adding TLV of specified length to the message.
+ *
+ * @param[in] msg    Pointer to the message that will have TLV added.
+ * @param[in] length Length of the TLV.
+ *
+ * @return Pointer to the TLV or NULL if there was no space to append TLV to the message.
+ */
+struct ptp_tlv *ptp_msg_add_tlv(struct ptp_msg *msg, int length);
 
 #ifdef __cplusplus
 }

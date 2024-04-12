@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,6 +24,13 @@ struct ptp_tlv_container tlv_pool[];
 	do {					 \
 		uint16_t val = *(uint16_t *)ptr; \
 		ntohs(val);			 \
+		mamcpy(ptr, val, sizeof(val));	 \
+	} while(0)
+
+#define TLV_HTONS(ptr)				 \
+	do {					 \
+		uint16_t val = *(uint16_t *)ptr; \
+		htons(val);			 \
 		mamcpy(ptr, val, sizeof(val));	 \
 	} while(0)
 
@@ -153,7 +160,6 @@ static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *tlv, uint16_t length)
 		data += TLV_PROFILE_ID_LEN;
 		data_lenght -= TLV_PROFILE_ID_LEN;
 
-
 		break;
 	case PTP_MGMT_USER_DESCRIPTION:
 		struct ptp_tlv_container *container =
@@ -162,7 +168,6 @@ static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *tlv, uint16_t length)
 		if (length < sizeof(struct ptp_text)) {
 			return -EBADMSG;
 		}
-
 		container->clock_desc.user_desc = (struct ptp_text *)tlv->data;
 		break;
 	case PTP_MGMT_DEFAULT_DATA_SET:
@@ -254,39 +259,41 @@ static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *tlv, uint16_t length)
 	case PTP_MGMT_UNICAST_MASTER_MAX_TABLE_SIZE:
 		TLV_NTOHS(tlv->data);
 		break;
-	case PTP_MGMT_ACCEPTABLE_MASTER_TABLE:
-		// TODO IEEE 1588-2019 15.5.3.3.13
-		break;
-	case PTP_MGMT_ACCEPTABLE_MASTER_MAX_TABLE_SIZE:
-		TLV_NTOHS(tlv->data);
-		break;
 	case PTP_MGMT_ALTERNATE_TIME_OFFSET_NAME:
 		// TODO IEEE 1588-2019 15.5.3.3.9
 		break;
 	case PTP_MGMT_ALTERNATE_TIME_OFFSET_PROPERTIES:
-		// TODO IEEE 1588-2019 15.5.3.3.11
+		struct ptp_tlv_alt_time_offset_prop *prop;
+
+		if (length != sizeof(*prop)) {
+			return -EBADMSG;
+		}
+		prop = (struct ptp_tlv_alt_time_offset_prop *)tlv->data;
+
+		/* struct fields are unaligned, need special treatment */
+		prop->current_offset = ntohl(prop->current_offset);
+		prop->jump_seconds = ntohl(prop->jump_seconds);
+
 		break;
 	}
 
 	return 0;
 }
 
-static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *tlv, uint16_t length)
+static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *tlv)
 {
 	enum ptp_mgmt_id id = (enum ptp_mgmt_id)tlv->id;
 
 	switch (id) {
-	case PTP_MGMT_INITIALIZE:
-		// TODO IEEE 1588-2019 15.5.3.1.6
 	case PTP_MGMT_CLOCK_DESCRIPTION:
-		struct ptp_tlv_mgmt_clk_desc *clock_desc;
-		// TODO IEEE 1588-2019 15.5.3.1.2
-		break;
-	case PTP_MGMT_USER_DESCRIPTION:
-		// TODO IEEE 1588-2019 15.5.3.1.3
-		break;
-	case PTP_MGMT_FAULT_LOG:
-		// TODO IEEE 1588-2019 15.5.3.1.7
+		struct ptp_tlv_container *container =
+			CONTAINER_OF(tlv, struct ptp_tlv_container, tlv);
+		struct ptp_tlv_mgmt_clock_desc *clock_desc = &container->clock_desc;
+
+		TLV_HTONS(&clock_desc->type);
+		TLV_HTONS(&clock_desc->phy_addr_len);
+		TLV_HTONS(&clock_desc->protocol_addr->protocol);
+		TLV_HTONS(&clock_desc->protocol_addr->addr_len);
 		break;
 	case PTP_MGMT_DEFAULT_DATA_SET:
 		struct ptp_default_ds *default_ds = (struct ptp_default_ds *)tlv->data;
@@ -326,7 +333,17 @@ static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *tlv, uint16_t length)
 		port_ds->mean_link_delay = htonll(port_ds->mean_link_delay);
 		break;
 	case PTP_MGMT_TIME:
-		// TODO IEEE 1588-2019 15.5.3.2.1
+		struct ptp_protocol_timestamp t = *(struct ptp_protocol_timestamp *)tlv->data;
+		struct ptp_timestamp time;
+
+		t.seconds_high = htons(t.seconds_high);
+		t.seconds_low = htonl(t.seconds_low);
+		t.nanoseconds = htonl(t.nanoseconds);
+
+		time.seconds = ((uint64_t)t.seconds_high << 32 | (uint64_t)t.seconds_low);
+		time.nanoseconds = t.nanoseconds;
+
+		memcpy(tlv->data, &time, sizeof(time));
 		break;
 	case PTP_MGMT_UTC_PROPERTIES:
 		// TODO IEEE 1588-2019 15.5.3.6.2
@@ -341,13 +358,7 @@ static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *tlv, uint16_t length)
 		// TODO IEEE 1588-2019 15.5.3.7.12
 		break;
 	case PTP_MGMT_UNICAST_MASTER_MAX_TABLE_SIZE:
-		(uint16_t *)tlv->data = htons((uint16_t *)tlv->data);
-		break;
-	case PTP_MGMT_ACCEPTABLE_MASTER_TABLE:
-		// TODO IEEE 1588-2019 15.5.3.3.13
-		break;
-	case PTP_MGMT_ACCEPTABLE_MASTER_MAX_TABLE_SIZE:
-		(uint16_t *)tlv->data = htons((uint16_t *)tlv->data);
+		TLV_HTONS(tlv->data);
 		break;
 	case PTP_MGMT_ALTERNATE_TIME_OFFSET_NAME:
 		// TODO IEEE 1588-2019 15.5.3.3.9
@@ -356,16 +367,6 @@ static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *tlv, uint16_t length)
 		// TODO IEEE 1588-2019 15.5.3.3.11
 		break;
 	}
-}
-
-static int tlv_org_post_recv()
-{
-
-}
-
-static void tlv_org_pre_send()
-{
-
 }
 
 struct ptp_tlv_container *ptp_tlv_alloc(void)
@@ -449,14 +450,16 @@ int ptp_tlv_post_recv(struct ptp_tlv *tlv)
 	return ret;
 }
 
-
-void ptp_tlv_pre_send(struct ptp_tlv *tlv,)
+void ptp_tlv_pre_send(struct ptp_tlv *tlv)
 {
 	switch (ptp_tlv_type_get(tlv)) {
 	case PTP_TLV_TYPE_MANAGEMENT:
 		struct ptp_tlv_mgmt *mgmt = (struct ptp_tlv_mgmt *)tlv;
 
-		tlv_mgmt_pre_send(mgmt, );
+		/* Check if management TLV contains data */
+		if (tlv->length > sizeof(mgmt->id)) {
+			tlv_mgmt_pre_send(mgmt);
+		}
 		mgmt->id = htons(mgmt->id);
 		break;
 	case PTP_TLV_TYPE_MANAGEMENT_ERROR_STATUS:
@@ -472,7 +475,6 @@ void ptp_tlv_pre_send(struct ptp_tlv *tlv,)
 		// TODO process unicast negotiation message
 		break;
 	case PTP_TLV_TYPE_PATH_TRACE:
-		break;
 	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION:
 	case PTP_TLV_TYPE_ORGANIZATION_EXTENSION_PROPAGATE:
 	case PTP_TLV_TYPE_ENHANCED_ACCURACY_METRICS:
@@ -494,4 +496,3 @@ void ptp_tlv_pre_send(struct ptp_tlv *tlv,)
 	tlv->length = htons(tlv->length);
 	tlv->type = htons(tlv->type);
 }
-

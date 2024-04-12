@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -32,11 +32,9 @@ struct msg_container {
 
 struct msg_container msg_pool[PTP_MSG_POOL];
 
-static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
+static uint8_t *msg_suffix_get(struct ptp_msg *msg)
 {
-	uint8_t *suffix;
-	int suffix_len, ret = 0;
-	struct ptp_tlv_container *tlv_container;
+	uint8_t *suffix = NULL;
 
 	switch (ptp_msg_type_get(msg)) {
 	case PTP_MSG_SYNC:
@@ -70,6 +68,15 @@ static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 		suffix = msg->management.suffix;
 		break;
 	}
+
+	return suffix;
+}
+
+static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
+{
+	int suffix_len, ret = 0;
+	struct ptp_tlv_container *tlv_container;
+	uint8_t *suffix = msg_suffix_get(msg);
 
 	if (!suffix) {
 		LOG_DBG("No TLV attached to the message");
@@ -115,6 +122,8 @@ static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 
 		sys_slist_append(&msg->tlvs, &tlv_container->node);
 	}
+
+	return suffix_len;
 }
 
 static void msg_tlv_postprocess(struct ptp_msg *msg)
@@ -254,8 +263,7 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	case PTP_MSG_SYNC:
 		break;
 	case PTP_MSG_DELAY_REQ:
-		struct net_ptp_time ts;
-		ptp_clock_get(clock->phc, &ts);
+		ptp_clock_get(clock->phc, &msg->timestamp.host);
 		break;
 	case PTP_MSG_PDELAY_REQ:
 		break;
@@ -291,7 +299,7 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	return 0;
 }
 
-int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
+int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt)
 {
 	static const int msg_size[] = {
 		[PTP_MSG_SYNC]		        = sizeof(struct ptp_sync_msg),
@@ -342,6 +350,7 @@ int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 		msg_port_id_post_recv(&msg->pdelay_resp_follow_up.req_port_id);
 		break;
 	case PTP_MSG_ANNOUNCE:
+		ptp_clock_get(port->clock->phc, &msg->timestamp.host);
 		msg_timestamp_post_recv(msg, &msg->announce.origin_timestamp);
 		msg->announce.current_utc_offset = ntohs(msg->announce.current_utc_offset);
 		msg->announce.gm_clk_quality.offset_scaled_log_variance =
@@ -365,8 +374,38 @@ int ptp_msg_post_recv(struct ptp_msg *msg, int cnt)
 
 	if (msg_size[type] + tlv_len != msg->header.msg_length) {
 		LOG_ERR("Length and TLVs don't correspond with specified in the message");
-		return -1;
+		return -EMSGSIZE;
 	}
 
 	return 0;
+}
+
+struct ptp_tlv *ptp_msg_add_tlv(struct ptp_msg *msg, int length)
+{
+	struct ptp_tlv_container *tlv_container;
+	uint8_t *suffix = msg_suffix_get(msg);
+
+	if (!suffix) {
+		return NULL;
+	}
+
+	tlv_container = (struct ptp_tlv_container *)sys_slist_peek_tail(&msg->tlvs);
+	if (tlv_container) {
+		suffix = (uint8_t *)tlv_container->tlv;
+		suffix += sizeof(*tlv_container->tlv);
+		suffix += tlv_container->tlv->length;
+	}
+
+	if ((intptr_t)(suffix + length) >= (intptr_t)&msg->ref) {
+		LOG_ERR("Not enough space for TLV of %d length", lenght);
+		return NULL;
+	}
+
+	tlv_container = ptp_tlv_alloc();
+	if (tlv_container) {
+		tlv_container->tlv = (struct ptp_tlv *)suffix;
+		msg->header.msg_length += length;
+	}
+
+	return tlv_container ? tlv_container->tlv : NULL;
 }

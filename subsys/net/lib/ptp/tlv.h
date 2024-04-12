@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -123,6 +123,22 @@ enum ptp_mgmt_id {
 };
 
 /**
+ * @brief Management error ID
+ *
+ * @note based on IEEE 1588-2019 Section 15.5.4.4 Table 109
+ */
+enum ptp_mgmt_err {
+	PTP_MGMT_ERR_RESPONSE_TOO_BIG = 0x1,
+	PTP_MGMT_ERR_NO_SUCH_ID,
+	PTP_MGMT_ERR_WRONG_LENGTH,
+	PTP_MGMT_ERR_WRONG_VALUE,
+	PTP_MGMT_ERR_NOT_SETABLE,
+	PTP_MGMT_ERR_NOT_SUPPORTED,
+	PTP_MGMT_ERR_UNPOPULATED,
+	PTP_MGMT_ERR_GENERAL = 0xFFFE,
+};
+
+/**
  * @brief PAD TLV - used to increase length of any PTP message.
  *
  * @note 14.4.2 - PAD TLV
@@ -159,16 +175,32 @@ struct ptp_tlv_mgmt {
 };
 
 /**
+ * @brief TLV for timescale offset attributes
+ *
+ * @note 15.5.3.3.11 - ALTERNATE_TIME_OFFSET_PROPERTIES management TLV
+ */
+struct ptp_tlv_alt_time_offset_prop {
+	uint8_t  key;
+	int32_t  current_offset;
+	int32_t  jump_seconds;
+	struct {
+		uint16_t seconds_high;
+		uint32_t seconds_low;
+	} __packed next_jump_time;
+	uint8_t  reserved;
+} __packed;
+
+/**
  * @brief Management error status TLV.
  *
  * @note 15.5.4 - MANAGEMENT_ERROR_STATUS TLV format.
  */
 struct ptp_tlv_mgmt_err {
-	uint16_t type;
-	uint16_t length;
-	uint16_t err_id;
-	uint16_t id;
-	uint32_t reserved;
+	uint16_t	type;
+	uint16_t	length;
+	uint16_t	err_id;
+	uint16_t	id;
+	uint32_t	reserved;
 	struct ptp_text display_data;
 }
 
@@ -176,16 +208,16 @@ struct ptp_tlv_mgmt_err {
  * @brief
 */
 struct ptp_tlv_mgmt_clock_desc {
-	uint16_t *type;
-	struct ptp_text *phy_protocol;
-	uint16_t *phy_addr_len;
-	uint8_t *phy_addr;
+	uint16_t	     *type;
+	struct ptp_text	     *phy_protocol;
+	uint16_t	     *phy_addr_len;
+	uint8_t		     *phy_addr;
 	struct ptp_port_addr *protocol_addr;
-	uint8_t *manufacturer_id;
-	struct ptp_text *product_desc;
-	struct ptp_text *revision_data;
-	struct ptp_text *user_desc;
-	uint8_t *profile_id;
+	uint8_t		     *manufacturer_id;
+	struct ptp_text	     *product_desc;
+	struct ptp_text	     *revision_data;
+	struct ptp_text	     *user_desc;
+	uint8_t		     *profile_id;
 };
 
 /**
@@ -223,16 +255,16 @@ enum ptp_tlv_type ptp_tlv_type_get(struct ptp_tlv *tlv);
 /**
  * @brief Function processing TLV after reception, and before processing by PTP stack.
  *
- * @param[in] tlv
+ * @param[in] tlv Pointer to the received TLV.
  *
  * @return Zero on success, othervise negative.
 */
 int ptp_tlv_post_recv(struct ptp_tlv *tlv);
 
 /**
- * @brief
+ * @brief Function preparing TLV to on-wire format before transmitting.
  *
- * @param[in] tlv
+ * @param[in] tlv Pointer to the received TLV.
  */
 void ptp_tlv_pre_send(struct ptp_tlv *tlv);
 

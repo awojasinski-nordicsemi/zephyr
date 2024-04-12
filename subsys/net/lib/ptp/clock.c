@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -53,6 +53,30 @@ static int clock_parent_ds_cmp(struct ptp_parent_ds *a, struct ptp_parent_ds *b)
 	return 0;
 }
 
+static int clock_management_get(struct ptp_port *port, struct ptp_msg *req)
+{
+	struct ptp_msg *msg;
+
+	msg = ptp_port_management_prepare();
+	if (!msg) {
+		return;
+	}
+
+	ptp_msg_send();
+}
+
+static int clock_management_set(struct ptp_port *port, struct ptp_msg *req)
+{
+	struct ptp_msg *msg;
+
+	msg = ptp_port_management_prepare();
+	if (!msg) {
+		return;
+	}
+
+	ptp_msg_send();
+}
+
 void ptp_clock_check_pollfd(struct ptp_clock *clock)
 {
 	struct ptp_port *port;
@@ -87,7 +111,6 @@ int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports)
 	clock->pollfd = new_pollfd;
 	return 0;
 }
-
 
 struct ptp_port *ptp_clock_get_port_from_iface(struct net_if *iface)
 {
@@ -220,27 +243,23 @@ struct ptp_clock *ptp_clock_init(void)
 	return clock;
 }
 
-void ptp_clock_management_handle(struct ptp_msg *msg)
+bool ptp_clock_management_process(struct ptp_port *port, struct ptp_msg *msg)
 {
+	bool ret = false;
 	struct ptp_tlv_mgmt *mgmt = msg->management.suffix;
+	struct ptp_clock *clock = port->clock;
+	struct ptp_port *p;
 
 	switch (ptp_mgmt_action_get(msg))
 	{
 	case PTP_MGMT_GET:
-		/* code */
+		clock_management_get();
 		break;
 	case PTP_MGMT_SET:
-		/* code */
-		break;
-	case PTP_MGMT_CMD:
-		/* code */
-		break;
-
-	default:
+		clock_management_set();
 		break;
 	}
 
-	/* only supported messages are */
 	switch(mgmt->id) {
 	case PTP_MGMT_NULL_PTP_MANAGEMENT:
 		break;
@@ -249,8 +268,8 @@ void ptp_clock_management_handle(struct ptp_msg *msg)
 	case PTP_MGMT_USER_DESCRIPTION:
 		break;
 	case PTP_MGMT_SAVE_IN_NON_VOLATILE_STORAGE:
-		break;
 	case PTP_MGMT_RESET_NON_VOLATILE_STORAGE:
+		ptp_port_management_error(port, msg, PTP_MGMT_ERR_NOT_SUPPORTED);
 		break;
 	case PTP_MGMT_INITIALIZE:
 		break;
@@ -344,5 +363,12 @@ void ptp_clock_management_handle(struct ptp_msg *msg)
 		break;
 	case PTP_MGMT_LOG_MIN_PDELAY_REQ_INTERVAL:
 		break;
+	default:
+		SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, p, node) {
+			ptp_port_management_process(p, port, msg);
+		}
+		break;
 	}
+
+	return ret;
 }

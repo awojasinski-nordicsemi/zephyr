@@ -172,6 +172,16 @@ struct ptp_dataset *ptp_clock_best_foreign_ds(struct ptp_clock *clock);
  */
 struct ptp_clock *ptp_clock_init(void);
 
+/**
+ * @brief Function processing PTP management message received on PTP Port.
+ *
+ * @param[in] port Pointer to the PTP Port.
+ * @param[in] msg  Pointer to the management message to be processed.
+ *
+ * @return True if processed message results in change requiring @ref PTP_EVT_STATE_DECISION.
+ */
+bool ptp_clock_management_process(struct ptp_port *port, struct ptp_msg *msg);
+
 #ifdef __cplusplus
 }
 #endif

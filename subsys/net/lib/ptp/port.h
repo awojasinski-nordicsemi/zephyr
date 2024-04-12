@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -171,6 +171,17 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg);
  * @return Non-zero if the announce message is different than the last.
  */
 int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg);
+
+/**
+ * @brief Function sending error response to the received management message.
+ *
+ * @param[in] port Pointer to the PTP Port.
+ * @param[in] msg  Pointer to the received management message.
+ * @param[in] err  Management error ID.
+ *
+ * @return 0 if management error message was send succesfully, negative othervise.
+ */
+int ptp_port_management_error(struct ptp_port *port, struct ptp_msg *msg, enum ptp_mgmt_err err);
 
 #ifdef __cplusplus
 }
