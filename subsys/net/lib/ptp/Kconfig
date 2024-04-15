@@ -257,7 +257,7 @@ config PTP_ANNOUNCE_RECV_TIMEOUT
 
 config PTP_ANNOUNCE_LOG_INTERVAL
 	int "Interval between successive Announce messages"
-	default 0 #127 # 0x7F in hexidecimal
+	default 0x7F
 	help
 	  Defines mean time interval between successive Announce messages. The value should be
 	  uniform through PTP domain. For more check IEEE 1588-2019 Section 7.7.2.2.
