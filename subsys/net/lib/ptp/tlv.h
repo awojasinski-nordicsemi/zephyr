@@ -244,9 +244,9 @@ void ptp_tlv_free(struct ptp_tlv_container *tlv_container);
 enum ptp_mgmt_op ptp_mgmt_action_get(struct ptp_msg *msg);
 
 /**
- * @brief
+ * @brief Function for getting type of the TLV.
  *
- * @param[in]
+ * @param[in] tlv Pointer to the TLV.
  *
  * @return Type of TLV message.
  */

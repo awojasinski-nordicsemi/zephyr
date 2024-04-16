@@ -87,6 +87,8 @@ enum ptp_time_src {
 /**
  * @brief Function returning @ref ptp_clock_id variable as a string.
  *
+ * @param[in] clock Pointer to the PTP Clock instance.
+ *
  * @return Pointer to the string.
  */
 char *ptp_clock_sprint_clk_id(struct ptp_clock *clock);
@@ -95,21 +97,21 @@ char *ptp_clock_sprint_clk_id(struct ptp_clock *clock);
  * @brief Function checking status of the file descriptors array. The array is updated
  * if has obsolite data.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] clock Pointer to the PTP Clock instance.
  */
 void ptp_clock_check_pollfd(struct ptp_clock *clock);
 
 /**
  * @brief Function invalidating status of the file descriptors array.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] clock Pointer to the PTP Clock instance.
  */
 void ptp_clock_pollfd_invalidate(struct ptp_clock *clock);
 
 /**
  * @brief Function resizing file descriptors array holding all sockets related to PTP Ports.
  *
- * @param[in] clock   Pointer to the PTP Clock structure.
+ * @param[in] clock   Pointer to the PTP Clock instance.
  * @param[in] n_ports PTP Ports count.
  *
  * @return returns 0 if succesfull, negative otherwise.
@@ -132,7 +134,7 @@ struct ptp_port *ptp_clock_get_port_from_iface(struct net_if *iface);
  * @note Based on Table 30 from section 9.3.5 of the IEEE 1588 - Updates for state decision
  * code M1 and M2.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] clock Pointer to the PTP Clock instance.
  */
 void ptp_clock_update_grandmaster(struct ptp_clock *clock);
 
@@ -141,7 +143,7 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock);
  *
  * @note Based on Table 33 from section 9.3.5 of the IEEE 1588 - Updates for state decision code S1.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] clock Pointer to the PTP Clock instance.
  */
 void ptp_clock_update_slave(struct ptp_clock *clock);
 
@@ -149,16 +151,16 @@ void ptp_clock_update_slave(struct ptp_clock *clock);
  * @brief Function for extracting data from default dataset to a structure allowing to compare
  * common across all datasets data.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] clock Pointer to the PTP Clock instance.
  *
- * @return Pointer to the ptp_dataset structure containging data from ptp_default_ds structure
+ * @return Pointer to the ptp_dataset containging data from ptp_default_ds structure
  */
 struct ptp_dataset *ptp_clock_default_ds(struct ptp_clock *clock);
 
 /**
  * @brief Function for getting a common dataset for the clock's best foreign master clock.
  *
- * @param[in] clock Pointer to the PTP Clock structure.
+ * @param[in] clock Pointer to the PTP Clock instance.
  *
  * @return NULL if the clock doesn't have best foreign master clock of pointer to the ptp_dataset
  * of the best foreign master clock.
@@ -166,21 +168,21 @@ struct ptp_dataset *ptp_clock_default_ds(struct ptp_clock *clock);
 struct ptp_dataset *ptp_clock_best_foreign_ds(struct ptp_clock *clock);
 
 /**
- * @brief Function initializing PTP Clock Instance.
+ * @brief Function initializing PTP Clock instance.
  *
- * @return Pointer to the structure representing PTP Clock Instance.
+ * @return Pointer to the structure representing PTP Clock instance.
  */
 struct ptp_clock *ptp_clock_init(void);
 
 /**
- * @brief Function processing PTP management message received on PTP Port.
+ * @brief Function checking if given PTP Clock IDs are the same.
  *
- * @param[in] port Pointer to the PTP Port.
- * @param[in] msg  Pointer to the management message to be processed.
+ * @param[in] c1 Pointer to the PTP Clock ID.
+ * @param[in] c2 Pointer to the PTP Clock ID.
  *
- * @return True if processed message results in change requiring @ref PTP_EVT_STATE_DECISION.
+ * @return True if the same, false otherwise.
  */
-bool ptp_clock_management_process(struct ptp_port *port, struct ptp_msg *msg);
+bool ptp_clock_id_eq(ptp_clk_id *c1, ptp_clk_id *c2);
 
 #ifdef __cplusplus
 }

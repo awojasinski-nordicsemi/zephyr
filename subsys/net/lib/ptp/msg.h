@@ -207,16 +207,16 @@ struct ptp_msg {
 };
 
 /**
- * @brief Function alocating space for new PTP message.
+ * @brief Function allocating space for a new PTP message.
  *
- * @return Pointer to the PTP Message.
+ * @return Pointer to the new PTP Message.
  */
 struct ptp_msg *ptp_msg_allocate(void);
 
 /**
- * @brief Function removing refference to the PTP message.
+ * @brief Function removing reference to the PTP message.
  *
- * @note If the message is not refferenced anywhere, the memory space is cleared.
+ * @note If the message is not referenced anywhere, the memory space is cleared.
  *
  * @param[in] msg Pointer to the PTP message.
  */
@@ -225,7 +225,7 @@ void ptp_msg_unref(struct ptp_msg *msg);
 /**
  * @brief Function duplicating message instance.
  *
- * @note Pointer of a message instance passed to the function must be in the network byte order.
+ * @note Pointer of a message passed to the function must be in the network byte order.
  *
  * @param[in] msg    Pointer to a message instance.
  * @param[in] lenght Length in bytes of a message.
@@ -236,24 +236,24 @@ void ptp_msg_unref(struct ptp_msg *msg);
 struct ptp_msg *ptp_msg_duplicate(struct ptp_msg *msg, size_t lenght);
 
 /**
- * @brief Function compering content of two PTP announce messages.
+ * @brief Function compering content of two PTP Announce messages.
  *
- * @param[in] m1 Pointer to the announce message to be compared.
- * @param[in] m2 Pointer to the announce message to be compared.
+ * @param[in] m1 Pointer to the Announce message to be compared.
+ * @param[in] m2 Pointer to the Announce message to be compared.
  *
  * @return Negative if m1 < m2, 0 if equal, else positive
 */
-int ptp_announce_msg_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2);
+int ptp_msg_announce_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2);
 
 /**
  * @brief Function checking if given message comes from current PTP Port's Master PTP instance.
  *
- * @param[in] port Pointer to a PTP Port instance.
- * @param[in] msg  Pointer to a message.
+ * @param[in] port Pointer to the PTP Port instance.
+ * @param[in] msg  Pointer to the message.
  *
- * @return True if message is received from curent PTP Port's Master, false otherwise.
+ * @return True if the message is received from the curent PTP Port's Master, false otherwise.
  */
-bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg);
+bool ptp_msg_current_parent_check(struct ptp_port *port, struct ptp_msg *msg);
 
 /**
  * @brief Function extracting message type from it.
@@ -261,25 +261,25 @@ bool ptp_check_if_current_parent(struct ptp_port *port, struct ptp_msg *msg);
  * @param[in] msg Pointer to the message.
  *
  * @return Type of the message.
-*/
+ */
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg);
 
 /**
- * @brief Function extracting PTP message from network packet
+ * @brief Function extracting PTP message from network packet.
  *
- * @param[in] pkt Network packet
+ * @param[in] pkt Pointer to the network packet.
  *
- * @return Pointer to a PTP message
+ * @return Pointer to a PTP message.
  */
 struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
 
 /**
- * @brief Function preparing message for right before transmission.
+ * @brief Function preparing message right before transmission.
  *
  * @param[in] clock Pointer to the PTP Clock instance.
- * @param[in] msg   Pointer to the received PTP message.
+ * @param[in] msg   Pointer to the prepared PTP message.
  *
- * @return
+ * @return 0 on success, negative otherwise.
  */
 int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg);
 
@@ -290,7 +290,7 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg);
  * @param[in] msg  Pointer to the received PTP message.
  * @param[in] cnt  Length of the message in bytes.
  *
- * @return
+ * @return 0 on success, negative otherwise.
  */
 int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt);
 

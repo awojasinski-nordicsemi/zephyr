@@ -55,7 +55,7 @@ typedef uint8_t ptp_clk_id[8];
 
 /**
  * @brief PTP Port Identity.
- * @note 5.3.5 - identifies a PTP port or a Link port.
+ * @note 5.3.5 - identifies a PTP Port or a Link port.
  */
 struct ptp_port_id {
 	ptp_clk_id clk_id;
@@ -136,8 +136,6 @@ struct ptp_comm_modes {
 	bool unicast_negotiation;
 	bool unicast_negotiation_req;
 };
-
-/* OPTIONAL */
 
 /**
  * @brief

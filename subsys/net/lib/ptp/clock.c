@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 #include "net_private.h"
 
 #include "bmca.h"
+#include "ddt.h"
 #include "clock.h"
 #include "port.h"
 #include "tlv.h"
@@ -40,6 +41,11 @@ static int clock_generate_id(ptp_clk_id *clock_id, struct net_if *iface)
 	return -1;
 }
 
+static char *clock_id_to_str(ptp_clk_id *clock_id)
+{
+	//TODO implementation
+}
+
 static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
 {
 	dest->fd = port->socket;
@@ -50,6 +56,7 @@ static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
 
 static int clock_parent_ds_cmp(struct ptp_parent_ds *a, struct ptp_parent_ds *b)
 {
+	//TODO implement function
 	return 0;
 }
 
@@ -124,7 +131,7 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 	clock->time_prop_ds.flags = 0; //TODO IEEE 1588-2019 9.4
 
 	if (clock_parent_ds_cmp(&old_parent, &clock->parent_ds)) {
-		// send notification to subscribers.
+		//TODO send notification to subscribers.
 	}
 }
 
@@ -177,6 +184,7 @@ struct ptp_clock *ptp_clock_init(void)
 	struct ptp_parent_ds *pds  = &clock->parent_ds;
 	struct net_if *iface = net_if_get_first_by_type(&NET_L2_GET_NAME(ETHERNET));
 
+
 	clock->time_src = (enum ptp_time_src)PTP_TIME_SRC_INTERNAL_OSC;
 
 	/* Initialize Default Dataset. */
@@ -215,6 +223,11 @@ struct ptp_clock *ptp_clock_init(void)
 
 	sys_slist_init(&clock->subs_list);
 	sys_slist_init(&clock->ports_list);
-
+	LOG_DBG("PTP Clock %s initialized", clock_id_to_str(&dds->clk_id));
 	return clock;
+}
+
+bool ptp_clock_id_eq(ptp_clk_id *c1, ptp_clk_id *c2)
+{
+	return memcmp(c1, c2, sizeof(ptp_clk_id)) == 0;
 }

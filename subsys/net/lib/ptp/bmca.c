@@ -165,5 +165,4 @@ enum ptp_port_state ptp_bmca_state_decision(struct ptp_port *port)
 		/* M3 */
 		return PTP_PS_MASTER;
 	}
-
 }

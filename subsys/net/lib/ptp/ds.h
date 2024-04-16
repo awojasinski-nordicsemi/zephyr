@@ -104,8 +104,8 @@ struct ptp_desc_ds {
  */
 struct ptp_fault_log_ds {
 	uint16_t no_foult_records;
-	void *fault_record_list; /* single-linked list of struct ptp_fault_record */
-	bool reset;
+	void	 *fault_record_list; /* single-linked list of struct ptp_fault_record */
+	bool	 reset;
 };
 
 /**
@@ -126,7 +126,7 @@ struct ptp_path_trace_ds {
 /* optional alternate timescale offsets mechanism. */
 struct ptp_alt_timescale_offset_ds {
 	uint8_t max_key;
-	void *list; /* single-lindek list of ptp_alt_timescale entries */
+	void	*list; /* single-lindek list of ptp_alt_timescale entries */
 };
 
 /* optional holdover upgrade mechanism */
@@ -146,7 +146,7 @@ struct ptp_gm_cluster_ds {
 struct ptp_acceptable_master_tab_ds {
 	uint16_t max_tab_size;
 	uint16_t tab_size;
-	void *list; /* list of ptp_acceptable_master elements */
+	void	 *list; /* list of ptp_acceptable_master elements */
 };
 
 /* optionl performance monitoring feature */
