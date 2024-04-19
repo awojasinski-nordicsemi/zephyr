@@ -23,12 +23,6 @@ K_FIFO_DEFINE(ptp_rx_queue);
 
 static struct k_thread ptp_thread_data;
 
-static void ptp_handle_state_decision_evt(struct ptp_clock *clock);
-static void ptp_handle_critical_msg(void);
-static void ptp_handle_msg(void);
-static void ptp_poll_events();
-static void ptp_thread(void *p1, void *p2, void *p3);
-
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
 	struct ptp_foreign_master_clock *best= NULL, *foreign;
@@ -37,7 +31,7 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		/* Compute best */
-		foreign = ptp_port_compute_best_foreign(port);
+		//foreign = ptp_port_compute_best_foreign(port);
 		if (!foreign) {
 			continue;
 		}
@@ -88,7 +82,6 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 	struct ptp_port *port;
 	struct zsock_pollfd *fd;
 	enum ptp_port_event event;
-	int cnt;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
@@ -96,7 +89,7 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 	while (1) {
 
 		ptp_clock_check_pollfd(clock);
-		cnt = zsock_poll(clock->pollfd, clock->default_ds.n_ports, 0);
+		zsock_poll(clock->pollfd, clock->default_ds.n_ports, 0);
 
 		fd = clock->pollfd;
 
@@ -104,14 +97,14 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 			struct k_timer *timers[] = {
 				&port->announce_timer,
 				&port->master_announce_timer,
-				&port->delay_timer;
+				&port->delay_timer,
 				&port->sync_rx_timer,
 				&port->sync_tx_timer,
 				&port->qualification_timer,
 				NULL, // used for socket
 			};
 
-			for (int i = 0; i < sizeof(timers); i++) {
+			for (int i = 0; i < sizeof(timers)/sizeof(timers[0]); i++) {
 				if (timers[i] == NULL &&
 				    !(fd->revents & (ZSOCK_POLLIN | ZSOCK_POLLPRI))) {
 					continue;
@@ -133,17 +126,19 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 			ptp_handle_state_decision_evt(clock);
 			clock->state_decision_event = false;
 		}
+
+		k_yield();
 	}
 }
 
-static void ptp_init(void)
+static int ptp_init(void)
 {
 	k_tid_t tid;
 	struct ptp_clock *clock = ptp_clock_init();
 	struct ptp_port *port;
 
 	if (!clock) {
-		return;
+		return -ENODEV;
 	}
 
 	net_if_foreach(ptp_port_open, (void *)clock);
@@ -154,6 +149,8 @@ static void ptp_init(void)
 	tid = k_thread_create(&ptp_thread_data, ptp_stack, K_KERNEL_STACK_SIZEOF(ptp_stack),
 			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), 0, K_NO_WAIT);
 	k_thread_name_set(&ptp_thread_data, "PTP");
+
+	return 0;
 }
 
 SYS_INIT(ptp_init, APPLICATION, 0);

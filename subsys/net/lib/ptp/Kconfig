@@ -47,13 +47,13 @@ choice
 	default PTP_UDP_IPv4_PROTOCOL
 
 	config PTP_UDP_IPv4_PROTOCOL
-		bool ""
+		bool "UDP with IPv4"
 
 	config PTP_UDP_IPv6_PROTOCOL
-		bool ""
+		bool "UDP with IPv6"
 
 	config PTP_IEEE_802_3_PROTOCOL
-		bool ""
+		bool "IEEE 802.3 - Raw Ethernet packets"
 endchoice
 
 config PTP_NET_PROTOCOL
@@ -62,7 +62,7 @@ config PTP_NET_PROTOCOL
 	default 0x02 if PTP_UDP_IPv6_PROTOCOL
 	default 0x03 if PTP_IEEE_802_3_PROTOCOL
 
-config CONFIG_PTP_NUM_PORTS
+config PTP_NUM_PORTS
 	int "Number of PTP Ports"
 	default 1 if PTP_ORDINARY_CLOCK
 	default 2 if PTP_BOUNDARY_CLOCK || PTP_TRANSPARENT_P2P_CLOCK || PTP_TRANSPARENT_E2E_CLOCK
@@ -199,6 +199,13 @@ config PTP_STACK_SIZE
 	  Set the PTP thread stack size in bytes. The PTP thread handles the
 	  PTP state machine. There is one PTP thread in the system.
 
+config PTP_MSG_POLL_SIZE
+	int "Number of messages available for allocation"
+	default 10
+	help
+	  PTP messages are allocated dynamically from memory slab. The Kconfig symbol
+	  defines number of blocks in the memory slab.
+
 config PTP_DISABLED_PRESENT
 	bool "The DISABLED state is present"
 	default true
@@ -257,10 +264,17 @@ config PTP_ANNOUNCE_RECV_TIMEOUT
 
 config PTP_ANNOUNCE_LOG_INTERVAL
 	int "Interval between successive Announce messages"
-	default 0x7F
+	default 127
 	help
 	  Defines mean time interval between successive Announce messages. The value should be
 	  uniform through PTP domain. For more check IEEE 1588-2019 Section 7.7.2.2.
+	  The value is the converted to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
+
+config PTP_MIN_DELAY_REQ_LOG_INTERVAL
+	int "Interval between successive Delay_Req messages"
+	default 0
+	help
+	  The minimum time interval between Delay_Req messages.
 	  The value is the converted to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
 config PTP_SYNC_LOG_INTERVAL

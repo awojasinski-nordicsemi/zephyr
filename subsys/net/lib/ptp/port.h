@@ -40,12 +40,12 @@ struct ptp_port {
 	struct k_timer			sync_rx_timer;
 	struct k_timer			sync_tx_timer;
 	struct k_timer			qualification_timer;
-	bool				announce_t_expierd;
-	bool				master_announce_t_expierd;
-	bool				delay_t_expierd;
-	bool				sync_rx_t_expierd;
-	bool				sync_tx_t_expierd;
-	bool				qualification_t_expierd;
+	bool				announce_t_expired;
+	bool				master_announce_t_expired;
+	bool				delay_t_expired;
+	bool				sync_rx_t_expired;
+	bool				sync_tx_t_expired;
+	bool				qualification_t_expired;
 	struct {
 		uint16_t		announce;
 		uint16_t		delay;
@@ -57,7 +57,7 @@ struct ptp_port {
 							 bool master_diff);
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			foreign_list;
-	struct net_pkt			*last_sync_fup;
+	struct ptp_msg			*last_sync_fup;
 	struct net_if_timestamp_cb 	sync_ts_cb;
 	struct net_if_timestamp_cb 	pdelay_resp_ts_cb;
 	bool				sync_ts_cb_registered;
@@ -124,6 +124,7 @@ struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port);
 /**
  * @brief Function generating PTP Port events based on PTP Port activity.
  * When pointer to a timer is passed function doesn't chceck if any message has been
+ * recived on a PTP Port's socket.
  *
  * @param[in] port  Pointer to the PTP Port structure.
  * @param[in] timer Pointer to the PTP Port's timer to be checked.
@@ -171,17 +172,6 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg);
  * @return Non-zero if the announce message is different than the last.
  */
 int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg);
-
-/**
- * @brief Function sending error response to the received management message.
- *
- * @param[in] port Pointer to the PTP Port.
- * @param[in] msg  Pointer to the received management message.
- * @param[in] err  Management error ID.
- *
- * @return 0 if management error message was send succesfully, negative othervise.
- */
-int ptp_port_management_error(struct ptp_port *port, struct ptp_msg *msg, enum ptp_mgmt_err err);
 
 #ifdef __cplusplus
 }

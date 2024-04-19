@@ -14,6 +14,8 @@
 #ifndef ZEPHYR_INCLUDE_PTP_CLOCK_H_
 #define ZEPHYR_INCLUDE_PTP_CLOCK_H_
 
+#include <zephyr/net/socket.h>
+
 #include "ds.h"
 #include "port.h"
 
@@ -41,7 +43,7 @@ struct ptp_clock {
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			subs_list;
 	sys_slist_t			ports_list;
-	struct zsock_pollfd		*pollfd;
+	struct zsock_pollfd		pollfd[CONFIG_PTP_NUM_PORTS];
 	bool				pollfd_valid;
 	uint8_t				time_src;
 };
@@ -107,16 +109,6 @@ void ptp_clock_check_pollfd(struct ptp_clock *clock);
  * @param[in] clock Pointer to the PTP Clock instance.
  */
 void ptp_clock_pollfd_invalidate(struct ptp_clock *clock);
-
-/**
- * @brief Function resizing file descriptors array holding all sockets related to PTP Ports.
- *
- * @param[in] clock   Pointer to the PTP Clock instance.
- * @param[in] n_ports PTP Ports count.
- *
- * @return returns 0 if succesfull, negative otherwise.
- */
-int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports);
 
 /**
  * @brief Get PTP Port from network interface.

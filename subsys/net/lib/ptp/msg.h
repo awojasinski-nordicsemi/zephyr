@@ -14,10 +14,12 @@
 #ifndef ZEPHYR_INCLUDE_PTP_MSG_H_
 #define ZEPHYR_INCLUDE_PTP_MSG_H_
 
+#include <stdbool.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/net/net_if.h>
 
-#include "port.h"
+#include "ddt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,8 +60,7 @@ enum ptp_msg_type {
  * @brief Common PTP message header.
  */
 struct ptp_header {
-	uint8_t		   type:4;
-	uint8_t		   major_sdo_id:4;
+	uint8_t		   type_major_sdo_id;
 	uint8_t		   version;
 	uint16_t	   msg_length;
 	uint8_t		   domain_number;
@@ -196,7 +197,7 @@ struct ptp_msg {
 		struct ptp_signaling_msg	     signaling;
 		struct ptp_management_msg	     management;
 		uint8_t				     mtu[1500]; // MTU of Ethernet II frame
-	};
+	} __packed;
 	struct {
 		struct ptp_timestamp protocol;
 		struct ptp_timestamp host;
@@ -211,7 +212,7 @@ struct ptp_msg {
  *
  * @return Pointer to the new PTP Message.
  */
-struct ptp_msg *ptp_msg_allocate(void);
+struct ptp_msg *ptp_msg_alloc(void);
 
 /**
  * @brief Function removing reference to the PTP message.
@@ -253,7 +254,7 @@ int ptp_msg_announce_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2);
  *
  * @return True if the message is received from the curent PTP Port's Master, false otherwise.
  */
-bool ptp_msg_current_parent_check(struct ptp_port *port, struct ptp_msg *msg);
+bool ptp_msg_current_parent_check(const struct ptp_port *port, const struct ptp_msg *msg);
 
 /**
  * @brief Function extracting message type from it.
@@ -271,7 +272,7 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg);
  *
  * @return Pointer to a PTP message.
  */
-struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
+struct ptp_msg *ptp_msg_get_from_pkt(const struct net_pkt *pkt);
 
 /**
  * @brief Function preparing message right before transmission.

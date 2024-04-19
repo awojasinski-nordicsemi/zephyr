@@ -8,6 +8,7 @@
 LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/net_if.h>
@@ -28,22 +29,35 @@ static int clock_generate_id(ptp_clk_id *clock_id, struct net_if *iface)
 	struct net_linkaddr *addr = net_if_get_link_addr(iface);
 
 	if (addr) {
-		((uint8_t *)clock_id)[0] = addr->addr[0];
-		((uint8_t *)clock_id)[1] = addr->addr[1];
-		((uint8_t *)clock_id)[2] = addr->addr[2];
-		((uint8_t *)clock_id)[3] = 0xFF;
-		((uint8_t *)clock_id)[4] = 0xFE;
-		((uint8_t *)clock_id)[5] = addr->addr[3];
-		((uint8_t *)clock_id)[6] = addr->addr[4];
-		((uint8_t *)clock_id)[7] = addr->addr[5];
+		clock_id->id[0] = addr->addr[0];
+		clock_id->id[1] = addr->addr[1];
+		clock_id->id[2] = addr->addr[2];
+		clock_id->id[3] = 0xFF;
+		clock_id->id[4] = 0xFE;
+		clock_id->id[5] = addr->addr[3];
+		clock_id->id[6] = addr->addr[4];
+		clock_id->id[7] = addr->addr[5];
 		return 0;
 	}
 	return -1;
 }
 
-static char *clock_id_to_str(ptp_clk_id *clock_id)
+static const char *clock_id_str(ptp_clk_id *clock_id)
 {
-	//TODO implementation
+	static char id[] = "FF:FF:FF:FF:FF:FF:FF:FF";
+	uint8_t *cid = clock_id->id;
+
+	snprintk(id, strlen(id), "%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
+		 cid[0],
+		 cid[1],
+		 cid[2],
+		 cid[3],
+		 cid[4],
+		 cid[5],
+		 cid[6],
+		 cid[7]);
+
+	return id;
 }
 
 static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
@@ -81,26 +95,12 @@ void ptp_clock_pollfd_invalidate(struct ptp_clock *clock)
 	clock->pollfd_valid = false;
 }
 
-int ptp_clock_realloc_pollfd(struct ptp_clock *clock, int n_ports)
-{
-	struct zsock_pollfd *new_pollfd;
-
-	new_pollfd = realloc(clock->pollfd, n_ports * sizeof(*clock->pollfd));
-
-	if (!new_pollfd) {
-		return -1;
-	}
-
-	clock->pollfd = new_pollfd;
-	return 0;
-}
-
 struct ptp_port *ptp_clock_get_port_from_iface(struct net_if *iface)
 {
 	struct ptp_clock *clock = &domain_clock;
 	struct ptp_port *port;
 
-	SYS_SLIST_FOR_EACH_CONTAINER(clock->ports_list, port, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		if (port->iface == iface) {
 			return port;
 		}
@@ -137,16 +137,16 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 
 void ptp_clock_update_slave(struct ptp_clock *clock)
 {
-	struct ptp_msg *best_msg = (struct ptp_msg *)k_fifo_peek_tail(clock->best->messages);
+	struct ptp_msg *best_msg = (struct ptp_msg *)(&clock->best->messages);
 
 	clock->current_ds.steps_rm = 1 + clock->best->dataset.steps_rm;
 
 	memcpy(&clock->parent_ds.gm_id,
 	       &best_msg->announce.gm_id,
 	       sizeof(best_msg->announce.gm_id));
-	memccpy(&clock->parent_ds.port_id,
-		&clock->best->dataset.sender,
-		sizeof(clock->best->dataset.sender));
+	memcpy(&clock->parent_ds.port_id,
+	       &clock->best->dataset.sender,
+	       sizeof(clock->best->dataset.sender));
 	clock->parent_ds.gm_clk_quality = best_msg->announce.gm_clk_quality;
 	clock->parent_ds.gm_priority1 = best_msg->announce.gm_priority1;
 	clock->parent_ds.gm_priority2 = best_msg->announce.gm_priority2;
@@ -184,7 +184,6 @@ struct ptp_clock *ptp_clock_init(void)
 	struct ptp_parent_ds *pds  = &clock->parent_ds;
 	struct net_if *iface = net_if_get_first_by_type(&NET_L2_GET_NAME(ETHERNET));
 
-
 	clock->time_src = (enum ptp_time_src)PTP_TIME_SRC_INTERNAL_OSC;
 
 	/* Initialize Default Dataset. */
@@ -217,13 +216,13 @@ struct ptp_clock *ptp_clock_init(void)
 
 	clock->phc = net_eth_get_ptp_clock(iface);
 	if (!clock->phc) {
-		LOG_ERR("Couldn't get PTP Clock for the interface.");
+		LOG_ERR("Couldn't get PTP HW Clock for the interface.");
 		return NULL;
 	}
 
 	sys_slist_init(&clock->subs_list);
 	sys_slist_init(&clock->ports_list);
-	LOG_DBG("PTP Clock %s initialized", clock_id_to_str(&dds->clk_id));
+	LOG_DBG("PTP Clock %s initialized", clock_id_str(&dds->clk_id));
 	return clock;
 }
 

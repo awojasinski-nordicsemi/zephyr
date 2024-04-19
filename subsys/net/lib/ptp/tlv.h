@@ -147,7 +147,7 @@ struct ptp_tlv_pad {
 	uint16_t type;
 	uint16_t length;
 	uint8_t  pad[0];
-};
+} __packed;
 
 /**
  * @brief Organization-specific TLV.
@@ -160,7 +160,7 @@ struct ptp_tlv_org {
 	uint8_t  id[3];
 	uint8_t  subtype[3];
 	uint8_t  data[0];
-};
+} __packed;
 
 /**
  * @brief Management TLV.
@@ -172,7 +172,7 @@ struct ptp_tlv_mgmt {
 	uint16_t length;
 	uint16_t id;
 	uint8_t  data[0];
-};
+} __packed;
 
 /**
  * @brief TLV for timescale offset attributes
@@ -202,7 +202,7 @@ struct ptp_tlv_mgmt_err {
 	uint16_t	id;
 	uint32_t	reserved;
 	struct ptp_text display_data;
-}
+} __packed;
 
 /**
  * @brief
@@ -218,6 +218,12 @@ struct ptp_tlv_mgmt_clock_desc {
 	struct ptp_text	     *revision_data;
 	struct ptp_text	     *user_desc;
 	uint8_t		     *profile_id;
+};
+
+struct ptp_tlv_container {
+	sys_snode_t		       node;
+	struct ptp_tlv		       *tlv;
+	struct ptp_tlv_mgmt_clock_desc clock_desc;
 };
 
 /**

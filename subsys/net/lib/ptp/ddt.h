@@ -37,7 +37,7 @@ struct ptp_protocol_timestamp {
 	uint32_t seconds_low;
 	/* Nanoseconds. */
 	uint32_t nanoseconds;
-};
+} __packed;
 
 /**
  * @brief PTP timestamp format used internally by the host.
@@ -51,7 +51,9 @@ struct ptp_timestamp {
  * @brief PTP Clock Identity.
  * @note 5.3.4 - identifies unique entities within a PTP network.
  */
-typedef uint8_t ptp_clk_id[8];
+typedef struct {
+	uint8_t id[8];
+} ptp_clk_id;
 
 /**
  * @brief PTP Port Identity.
@@ -60,7 +62,7 @@ typedef uint8_t ptp_clk_id[8];
 struct ptp_port_id {
 	ptp_clk_id clk_id;
 	uint16_t   port_number;
-};
+} __packed;
 
 /**
  * @brief Structure represeniting address of a PTP Port.
@@ -70,7 +72,7 @@ struct ptp_port_addr {
 	uint16_t protocol;
 	uint16_t addr_len; /* range from 1-16 */
 	uint8_t  address[0];
-};
+} __packed;
 
 /**
  * @brief Structure for PTP Clock quality metrices.
@@ -80,7 +82,7 @@ struct ptp_clk_quality {
 	uint8_t  class;
 	uint8_t  accuracy;
 	uint16_t offset_scaled_log_variance;
-};
+} __packed;
 
 /**
  * @brief
@@ -90,13 +92,7 @@ struct ptp_tlv {
 	uint16_t type;
 	uint16_t length;
 	uint8_t  value[0];
-};
-
-struct ptp_tlv_container {
-	sys_snode_t		       node;
-	struct ptp_tlv		       *tlv;
-	struct ptp_tlv_mgmt_clock_desc clock_desc;
-};
+} __packed;
 
 /**
  * @brief Generic datatype for storing text in PTP messages.
@@ -105,7 +101,7 @@ struct ptp_tlv_container {
 struct ptp_text {
 	uint8_t lenght; /* might be larger than number of symbols due to UTF-8 encoding */
 	uint8_t text[0]; /* encoded as UTF-8, single symbol can be 1-4 bytes long */
-};
+} __packed;
 
 /**
  * @brief Structure for capturing fault logs.
@@ -118,7 +114,7 @@ struct ptp_fault_record {
 	struct ptp_text	     name;
 	struct ptp_text	     value;
 	struct ptp_text	     desc;
-};
+} __packed;
 
 /**
  * @brief
@@ -148,7 +144,7 @@ struct ptp_alt_timescale {
 	int32_t	        jump_seconds;
 	uint64_t        time_of_next_jump:48;
 	struct ptp_text disp_name;
-};
+} __packed;
 
 /**
  * @brief
@@ -158,6 +154,10 @@ struct ptp_acceptable_master {
 	struct ptp_port_id port_id;
 	uint8_t		   alt_priority1;
 };
+
+struct ptp_port;
+
+struct ptp_clock;
 
 #ifdef __cplusplus
 }

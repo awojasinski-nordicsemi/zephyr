@@ -7,6 +7,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/ptp_clock.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_pkt.h>
@@ -16,8 +17,6 @@ LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
 #include "msg.h"
 #include "port.h"
 #include "tlv.h"
-
-#define PTP_MSG_POOL 10
 
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
 #define HDR_LEN (NET_IPV4H_LEN + NET_UDPH_LEN)
@@ -32,7 +31,35 @@ struct msg_container {
 	struct ptp_msg msg __aligned(8);
 };
 
-struct msg_container msg_pool[PTP_MSG_POOL];
+static struct k_mem_slab msg_slab;
+
+K_MEM_SLAB_DEFINE_STATIC(msg_slab, sizeof(struct msg_container), CONFIG_PTP_MSG_POLL_SIZE, 8);
+
+static const char *msg_type_str(struct ptp_msg *msg)
+{
+	switch (ptp_msg_type_get(msg)) {
+	case PTP_MSG_SYNC:
+		return "Sync";
+	case PTP_MSG_DELAY_REQ:
+		return "Delay_Req";
+	case PTP_MSG_PDELAY_REQ:
+		return "Pdelay_Req";
+	case PTP_MSG_PDELAY_RESP:
+		return "Pdelay_Resp";
+	case PTP_MSG_FOLLOW_UP:
+		return "Follow_Up";
+	case PTP_MSG_DELAY_RESP:
+		return "Delay_Resp";
+	case PTP_MSG_PDELAY_RESP_FOLLOW_UP:
+		return "Pdelay_Resp_Follow_Up";
+	case PTP_MSG_ANNOUNCE:
+		return "Announce";
+	case PTP_MSG_SIGNALING:
+		return "Signaling";
+	case PTP_MSG_MANAGEMENT:
+		return "Management";
+	}
+}
 
 static uint8_t *msg_suffix_get(struct ptp_msg *msg)
 {
@@ -76,7 +103,7 @@ static uint8_t *msg_suffix_get(struct ptp_msg *msg)
 
 static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 {
-	int suffix_len, ret = 0;
+	int suffix_len = 0, ret = 0;
 	struct ptp_tlv_container *tlv_container;
 	uint8_t *suffix = msg_suffix_get(msg);
 
@@ -85,8 +112,10 @@ static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 		return 0;
 	}
 
+	sys_slist_init(&msg->tlvs);
+
 	while (lenght >= sizeof(struct ptp_tlv)) {
-		tlv_container = ptp_tlv_allocate();
+		tlv_container = ptp_tlv_alloc();
 		if(!tlv_container) {
 			return -ENOMEM;
 		}
@@ -112,7 +141,7 @@ static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 			return -EBADMSG;
 		}
 
-		lenght -+ tlv_container->tlv->length;
+		lenght -= tlv_container->tlv->length;
 		suffix += tlv_container->tlv->length;
 		suffix_len += tlv_container->tlv->length;
 
@@ -191,46 +220,38 @@ static void msg_port_id_pre_send(struct ptp_port_id *port_id)
 	port_id->port_number = htons(port_id->port_number);
 }
 
-struct ptp_msg *ptp_msg_allocate(void)
+struct ptp_msg *ptp_msg_alloc(void)
 {
-	struct ptp_msg *msg = NULL;
+	struct msg_container *container = NULL;
 
-	for (size_t i = 0; i < PTP_MSG_POOL; i++) {
-		if (msg_pool[i].msg.ref == 0) {
-			msg = &msg_pool[i].msg;
-			msg->ref++;
-		}
-	}
-
-	if (!msg) {
+	if (k_mem_slab_alloc(&msg_slab, (void **)&container, K_FOREVER)) {
+		memset(container, 0, sizeof(*container));
+		container->msg.ref++;
+		return &container->msg;
+	} else {
 		LOG_ERR("Couldn't allocate memory for the message");
 		return NULL;
 	}
-
-	return msg;
 }
 
 void ptp_msg_unref(struct ptp_msg *msg)
 {
-	if (msg->ref > 0) {
-		msg->ref--;
-
-		if (msg->ref == 0) {
-			struct ptp_tlv_container *tlv_container;
-			struct msg_container *container = CONTAINER_OF(msg,
-								       struct msg_container,
-								       msg);
-
-			SYS_SLIST_FOR_EACH_CONTAINER(&msg->tlvs, tlv_container, node) {
-			ptp_tlv_free(tlv_container);
-			}
-
-			memset(container, 0, sizeof(*container));
-		}
+	msg->ref--;
+	if (msg->ref) {
+		return;
 	}
+
+	struct ptp_tlv_container *tlv_container;
+	struct msg_container *container = CONTAINER_OF(msg, struct msg_container, msg);
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&msg->tlvs, tlv_container, node) {
+		ptp_tlv_free(tlv_container);
+	}
+
+	k_mem_slab_free(&msg_slab, (void *)container);
 }
 
-bool ptp_msg_current_parent_check(struct ptp_port *port, struct ptp_msg *msg)
+bool ptp_msg_current_parent_check(const struct ptp_port *port, const struct ptp_msg *msg)
 {
 	struct ptp_port_id master = port->clock->parent_ds.port_id;
 	struct ptp_port_id msg_id = msg->header.src_port_id;
@@ -247,16 +268,16 @@ int ptp_msg_announce_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
 	return memcmp(&m1->announce.gm_priority1, &m2->announce.gm_priority1, len);
 }
 
-struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt)
+struct ptp_msg *ptp_msg_get_from_pkt(const struct net_pkt *pkt)
 {
 	// TODO: Strip UDP headers from net_pkt
 
-	return;
+	return NULL;
 }
 
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)
 {
-	return (enum ptp_msg_type)msg->header.type;
+	return (enum ptp_msg_type)(msg->header.type_major_sdo_id & 0xF);
 }
 
 int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
@@ -267,7 +288,10 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	case PTP_MSG_SYNC:
 		break;
 	case PTP_MSG_DELAY_REQ:
-		ptp_clock_get(clock->phc, &msg->timestamp.host);
+		struct net_ptp_time ts;
+		ptp_clock_get(clock->phc, &ts);
+		msg->timestamp.host.nanoseconds = ts.nanosecond;
+		msg->timestamp.host.seconds = ts.second;
 		break;
 	case PTP_MSG_PDELAY_REQ:
 		break;
@@ -330,7 +354,7 @@ int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt)
 		return -EBADMSG;
 	}
 
-	LOG_DBG("Port %d received %s message", port->port_ds.id.port_number, msg_type_to_str(msg));
+	LOG_DBG("Port %d received %s message", port->port_ds.id.port_number, msg_type_str(msg));
 
 	switch (type) {
 	case PTP_MSG_SYNC:
@@ -356,7 +380,10 @@ int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt)
 		msg_port_id_post_recv(&msg->pdelay_resp_follow_up.req_port_id);
 		break;
 	case PTP_MSG_ANNOUNCE:
-		ptp_clock_get(port->clock->phc, &msg->timestamp.host);
+		struct net_ptp_time ts;
+		ptp_clock_get(port->clock->phc, &ts);
+		msg->timestamp.host.nanoseconds = ts.nanosecond;
+		msg->timestamp.host.seconds = ts.second;
 		msg_timestamp_post_recv(msg, &msg->announce.origin_timestamp);
 		msg->announce.current_utc_offset = ntohs(msg->announce.current_utc_offset);
 		msg->announce.gm_clk_quality.offset_scaled_log_variance =

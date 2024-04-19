@@ -31,19 +31,6 @@ enum ptp_net_protocol {
 };
 
 /**
- * @brief Transport interface structure.
- */
-struct ptp_transport_if {
-	enum ptp_net_protocol type;
-	int (*open)(struct ptp_port *port, int priority);
-	int (*close)(struct ptp_port *port);
-	int (*send)(struct ptp_port *port);
-	int (*recv)(struct ptp_port *port);
-	int (*protocol_addr)(struct ptp_port *port);
-	int (*physical_addr)(struct ptp_port *port);
-};
-
-/**
  * @brief Function handling opening specified transport network connection.
  *
  * @param[in] port Pointer to the PTP Port structure
@@ -124,35 +111,6 @@ int ptp_transport_protocol_addr(struct ptp_port *port);
  * @return
  */
 int ptp_transport_physical_addr(struct ptp_port *port);
-
-/* Transport specific function declarations */
-
-#if CONFIG_PTP_IEEE_802_3_PROTOCOL
-int ptp_transport_raw_open(struct ptp_port *port);
-int ptp_transport_raw_close(struct ptp_port *port);
-int ptp_transport_raw_send(struct ptp_port *port);
-int ptp_transport_raw_recv(struct ptp_port *port);
-int ptp_transport_raw_protocol_addr(struct ptp_port *port);
-int ptp_transport_raw_physical_addr(struct ptp_port *port);
-#endif
-
-#if CONFIG_PTP_UDP_IPv4_PROTOCOL
-int ptp_transport_udp_open(struct ptp_port *port);
-int ptp_transport_udp_close(struct ptp_port *port);
-int ptp_transport_udp_send(struct ptp_port *port);
-int ptp_transport_udp_recv(struct ptp_port *port);
-int ptp_transport_udp_protocol_addr(struct ptp_port *port);
-int ptp_transport_udp_physical_addr(struct ptp_port *port);
-#endif
-
-#if CONFIG_PTP_UDP_IPv6_PROTOCOL
-int ptp_transport_udp6_open(struct ptp_port *port);
-int ptp_transport_udp6_close(struct ptp_port *port);
-int ptp_transport_udp6_send(struct ptp_port *port);
-int ptp_transport_udp6_recv(struct ptp_port *port);
-int ptp_transport_udp6_protocol_addr(struct ptp_port *port);
-int ptp_transport_udp6_physical_addr(struct ptp_port *port);
-#endif
 
 #ifdef __cplusplus
 }
