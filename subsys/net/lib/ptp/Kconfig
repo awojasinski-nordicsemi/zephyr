@@ -297,4 +297,25 @@ config PTP_STATISTICS
 	help
 	  Collected measurements can be accessed through shell.
 
+choice PTP_DSCP_PRIORITY
+	prompt ""
+	default PTP_DSCP_NONE_PRIORITY
+
+	config PTP_DSCP_HIGH_PRIORITY
+		bool "High priority of PTP packet classification"
+
+	config PTP_DSCP_MEDIUM_PRIORITY
+		bool "Medium priority of PTP packet classification"
+
+	config PTP_DSCP_NONE_PRIORITY
+		bool "Default priority of PTP packet classification"
+endchoice
+
+config PTP_DSCP_VALUE
+	int "Value of PTP packetc classification"
+	default 56 if PTP_DSCP_HIGH_PRIORITY
+	default 46 if PTP_DSCP_MEDIUM_PRIORITY
+	default 0 if PTP_DSCP_NONE_PRIORITY
+	range 0 63
+
 endif # PTP

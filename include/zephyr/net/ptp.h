@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Intel Corporation.
+ * Copyright (c) 2024 BayLibre SAS
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,11 +25,6 @@ extern "C" {
 #define PTP_MAJOR_VERSION 2
 #define PTP_MINOR_VERSION 1
 #define PTP_VERSION	  (PTP_MINOR_VERSION << 4 | PTP_MAJOR_VERSION)
-
-
-
-
-
 
 #ifdef __cplusplus
 }

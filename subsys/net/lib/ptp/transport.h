@@ -33,7 +33,7 @@ enum ptp_net_protocol {
 /**
  * @brief Function handling opening specified transport network connection.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  *
  * @return
  */
@@ -42,7 +42,7 @@ int ptp_transport_open(struct ptp_port *port);
 /**
  * @brief Function for closing specified transport network connection.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  *
  * @return
  */
@@ -54,7 +54,7 @@ int ptp_transport_close(struct ptp_port *port);
  *
  * @note Address specified in the message is ignored.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  * @param[in] msg  Pointer to the messge to be send.
  *
  * @return
@@ -65,7 +65,7 @@ int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg);
  * @brief Function for sending PTP message using a specified transport. The message is sent
  * to the address provided with @ref ptp_msg message structure.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  * @param[in] msg  Pointer to the messge to be send.
  *
  * @return
@@ -78,7 +78,7 @@ int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg);
  *
  * @note Address specified in the message is ignored.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  * @param[in] msg  Pointer to the messge to be send.
  *
  * @return
@@ -88,7 +88,7 @@ int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg);
 /**
  * @brief Function for receiving a PTP message using a specified transport.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  *
  * @return
  */
@@ -97,20 +97,21 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg);
 /**
  * @brief Function for getting transport's protocol address.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
+ * @param[in] addr Pointer to the buffer to store PTP Port's IP address.
  *
- * @return
+ * @return 0 if can't get IP address, otherwise length of the address.
  */
-int ptp_transport_protocol_addr(struct ptp_port *port);
+int ptp_transport_protocol_addr(struct ptp_port *port, uint8_t *addr);
 
 /**
  * @brief Function for getting transport's physical address.
  *
- * @param[in] port Pointer to the PTP Port structure
+ * @param[in] port Pointer to the PTP Port structure.
  *
- * @return
+ * @return Pointer to the structure holding hardware link layer address.
  */
-int ptp_transport_physical_addr(struct ptp_port *port);
+struct net_linkaddr *ptp_transport_physical_addr(struct ptp_port *port);
 
 #ifdef __cplusplus
 }
