@@ -226,7 +226,7 @@ struct ptp_clock *ptp_clock_init(void)
 	return clock;
 }
 
-bool ptp_clock_id_eq(ptp_clk_id *c1, ptp_clk_id *c2)
+bool ptp_clock_id_eq(const ptp_clk_id *c1, const ptp_clk_id *c2)
 {
 	return memcmp(c1, c2, sizeof(ptp_clk_id)) == 0;
 }

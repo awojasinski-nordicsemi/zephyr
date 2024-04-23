@@ -18,12 +18,12 @@ LOG_MODULE_REGISTER(net_ptp_transport, CONFIG_PTP_LOG_LEVEL);
 #define IP_MULTICAST_IP "224.0.1.129"
 #define IP6_MULTICAST_IP "FF0E:0:0:0:0:0:0:181"
 
-static int socket_open(struct net_if *iface, struct sockaddr *addr, const char *name)
+static int transport_socket_open(struct net_if *iface, struct sockaddr *addr, const char *name)
 {
 	static const int feature_on = 1;
 	int socket = zsock_socket(PF_PACKET, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (net_if_get_by_iface(port->iface) < 0) {
+	if (net_if_get_by_iface(iface) < 0) {
 		LOG_ERR("Failed to obtain interface index");
 		return -1;
 	}
@@ -38,7 +38,7 @@ static int socket_open(struct net_if *iface, struct sockaddr *addr, const char *
 		goto error;
 	}
 
-	if (zsock_bind(socket, &addr, sizeof(*addr))) {
+	if (zsock_bind(socket, addr, sizeof(*addr))) {
 		LOG_ERR("Faild to bind socket");
 		goto error;
 	}
@@ -54,22 +54,28 @@ error:
 	return -1;
 }
 
+static int transport_send()
+{
+	return 0;
+}
+
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
 static int transport_udp_open(struct net_if *iface, uint16_t port)
 {
 	uint8_t tos;
+	socklen_t length;
 	int socket, ret, ttl = 1;
 	char buf[INTERFACE_NAME_LEN];
 	struct in_addr mcast_addr;
 	struct ip_mreqn mreqn;
 	struct sockaddr_in addr = {
 		.sin_family = AF_INET,
-		.sin_addr = htonl(INADDR_ANY),
+		.sin_addr = INADDR_ANY_INIT,
 		.sin_port = htons(port),
 	};
 
 	ret = net_if_get_name(iface, buf, INTERFACE_NAME_LEN);
-	socket = socket_open(iface, &addr, ret == -ENOTSUP ? NULL : buf);
+	socket = transport_socket_open(iface, (struct sockaddr *)&addr, ret == -ENOTSUP ? NULL : buf);
 
 	if (socket < 0) {
 		return -1;
@@ -80,12 +86,12 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 		goto error;
 	}
 
-	if (net_addr_pton(addr.sin_addr, IP_MULTICAST_IP, &mcast_addr)) {
+	if (net_addr_pton(addr.sin_family, IP_MULTICAST_IP, &mcast_addr)) {
 		LOG_ERR("Couldn't resolve multicast IP address");
 		goto error;
 	}
 
-	memcpy(&mreqn.imr_multiaddr, mcast_addr, sizeof(struct in_addr));
+	memcpy(&mreqn.imr_multiaddr, &mcast_addr, sizeof(struct in_addr));
 	mreqn.imr_ifindex = net_if_get_by_iface(iface);
 	mreqn.imr_address = addr.sin_addr;
 
@@ -94,14 +100,15 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 		goto error;
 	}
 
-	if (zsock_getsockopt(socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos))) {
+	if (zsock_getsockopt(socket, IPPROTO_IP, IP_TOS, &tos, &length)) {
 		tos = 0;
 	}
 
 	tos &= ~0xFC;
 	tos = CONFIG_PTP_DSCP_VALUE << 2;
+	length = sizeof(tos);
 
-	if (zsock_setsockopt(socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos))) {
+	if (zsock_setsockopt(socket, IPPROTO_IP, IP_TOS, &tos, length)) {
 		LOG_WRN("Failed to set DSCP priority");
 	}
 
@@ -114,18 +121,19 @@ error:
 static int transport_udp_open(struct net_if *iface, uint16_t port)
 {
 	uint8_t tclass;
+	socklen_t length;
 	int socket, ret, hops = 1;
 	char buf[INTERFACE_NAME_LEN];
 	struct in6_addr mcast_addr;
 	struct ipv6_mreq mreqn;
 	struct sockaddr_in6 addr = {
 		.sin6_family = AF_INET6,
-		.sin6_addr = htonl(INADDR_ANY),
-		.sin6_port = htons(port),
+		.sin6_addr = IN6ADDR_ANY_INIT,
+		.sin6_port = htons(port)
 	};
 
 	ret = net_if_get_name(iface, buf, INTERFACE_NAME_LEN);
-	socket = socket_open(iface, &addr, ret == -ENOTSUP ? NULL : buf);
+	socket = transport_socket_open(iface, (struct sockaddr *)&addr, ret == -ENOTSUP ? NULL : buf);
 
 	if (socket < 0) {
 		return -1;
@@ -136,12 +144,12 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 		goto error;
 	}
 
-	if (net_addr_pton(addr.sin_addr, IP6_MULTICAST_IP, &mcast_addr)) {
+	if (net_addr_pton(addr.sin6_family, IP6_MULTICAST_IP, &mcast_addr)) {
 		LOG_ERR("Couldn't resolve multicast IP address");
 		goto error;
 	}
 
-	memcpy(&mreqn.ipv6mr_multiaddr, mcast_addr, sizeof(struct in6_addr));
+	memcpy(&mreqn.ipv6mr_multiaddr, &mcast_addr, sizeof(struct in6_addr));
 	mreqn.ipv6mr_ifindex = net_if_get_by_iface(iface);
 	mreqn.
 
@@ -150,14 +158,15 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 		goto error;
 	}
 
-	if (zsock_getsockopt(socket, IPPROTO_IPV6, IPV6_TCLASS, &tclass, sizeof(tclass))) {
+	if (zsock_getsockopt(socket, IPPROTO_IPV6, IPV6_TCLASS, &tclass, &length)) {
 		tclass = 0;
 	}
 
 	tclass &= ~0xFC;
 	tclass = CONFIG_PTP_DSCP_VALUE << 2;
+	length = sizeof(tclass);
 
-	if (zsock_setsockopt(socket, IPPROTO_IPV6, IPV6_TCLASS, &tclass, sizeof(tclass))) {
+	if (zsock_setsockopt(socket, IPPROTO_IPV6, IPV6_TCLASS, &tclass, length)) {
 		LOG_WRN("Failed to set priority");
 	}
 
@@ -198,12 +207,12 @@ int ptp_transport_close(struct ptp_port *port)
 
 int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg)
 {
-	return 0;
+	return transport_send();
 }
 
 int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg)
 {
-	return 0;
+	return transport_send();
 }
 
 int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg)
@@ -211,25 +220,47 @@ int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg)
 	return 0;
 }
 
+#if 0
 int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg)
 {
-	return 0;
+	int err = 0, cnt = 0;
+	uint8_t ctrl[256];
+	struct cmsghdr cm;
+	struct msghdr msghdr;
+	struct iovec iov = {
+		.iov_base = msg,
+		.iov_len = sizeof(msg->mtu),
+	};
+
+	msghdr.msg_iov = &iov;
+	msghdr.msg_flags = 0;
+	msghdr.msg_control = ctrl;
+	msghdr.msg_controllen = sizeof(ctrl);
+
+	cnt = zsock_recvmsg(, &msghdr, 0);
+
+	for (cm = CMSG_FIRSTHDR(&msghdr); cm != NULL; cm = CMSG_NXTHDR(&msghdr, cm)) {
+
+	}
+
+	return err;
 }
+#endif
 
 int ptp_transport_protocol_addr(struct ptp_port *port, uint8_t *addr)
 {
 	int length = 0;
 
 	if (IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL)) {
-		struct in_addr ip = net_if_ipv4_get_global_addr(port->iface, NET_ADDR_PREFERRED);
+		struct in_addr *ip = net_if_ipv4_get_global_addr(port->iface, NET_ADDR_PREFERRED);
 
 		length = NET_IPV4_ADDR_SIZE;
-		*addr = ip.s_addr;
+		*addr = ip->s_addr;
 	} else if (IS_ENABLED(CONFIG_PTP_IPv6_PROTOCOL)) {
-		struct in6_addr ip = net_if_ipv6_get_global_addr(NET_ADDR_PREFERRED, &port->iface);
+		struct in6_addr *ip = net_if_ipv6_get_global_addr(NET_ADDR_PREFERRED, &port->iface);
 
 		length = NET_IPV6_ADDR_SIZE;
-		memcpy(addr, &ip, length);
+		memcpy(addr, ip, length);
 	}
 
 	return length;

@@ -154,6 +154,13 @@ void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, boo
 int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool master_diff);
 
 /**
+ * @brief Function freeing memory used by foreign masters assigned to given PTP Port.
+ *
+ * @param[in] port Pointer to the PTP Port.
+ */
+void ptp_port_free_foreign_masters(struct ptp_port *port);
+
+/**
  * @brief Function updating current PTP Master Clock of the PTP Port based on specified message.
  *
  * @param[in] port Pointer to the PTP Port.

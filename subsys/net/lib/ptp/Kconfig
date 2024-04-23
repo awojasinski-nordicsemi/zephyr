@@ -285,7 +285,7 @@ config PTP_SYNC_LOG_INTERVAL
 	  when transmitted as multicast messages. The value is the converted
 	  to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
-config PTP_PDALAY_REQ_LOG_INTERVAL
+config PTP_MIN_PDELAY_REQ_LOG_INTERVAL
 	int "PDelay Req interval in Log2 base"
 	default 0
 	help

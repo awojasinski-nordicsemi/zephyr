@@ -174,7 +174,7 @@ struct ptp_clock *ptp_clock_init(void);
  *
  * @return True if the same, false otherwise.
  */
-bool ptp_clock_id_eq(ptp_clk_id *c1, ptp_clk_id *c2);
+bool ptp_clock_id_eq(const ptp_clk_id *c1, const ptp_clk_id *c2);
 
 #ifdef __cplusplus
 }
