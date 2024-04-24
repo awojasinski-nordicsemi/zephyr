@@ -71,7 +71,7 @@ struct ptp_port_id {
 struct ptp_port_addr {
 	uint16_t protocol;
 	uint16_t addr_len; /* range from 1-16 */
-	uint8_t  address[0];
+	uint8_t  address[];
 } __packed;
 
 /**
@@ -91,7 +91,7 @@ struct ptp_clk_quality {
 struct ptp_tlv {
 	uint16_t type;
 	uint16_t length;
-	uint8_t  value[0];
+	uint8_t  value[];
 } __packed;
 
 /**
@@ -100,7 +100,7 @@ struct ptp_tlv {
  */
 struct ptp_text {
 	uint8_t lenght; /* might be larger than number of symbols due to UTF-8 encoding */
-	uint8_t text[0]; /* encoded as UTF-8, single symbol can be 1-4 bytes long */
+	uint8_t text[]; /* encoded as UTF-8, single symbol can be 1-4 bytes long */
 } __packed;
 
 /**

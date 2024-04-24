@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp, CONFIG_NET_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(net_ptp, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/drivers/ptp_clock.h>
 #include <zephyr/net/ethernet_mgmt.h>

@@ -42,7 +42,6 @@ static inline void tlv_htons(void *ptr)
 static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *mgmt_tlv, uint16_t length)
 {
 	enum ptp_mgmt_id id = (enum ptp_mgmt_id)mgmt_tlv->id;
-	struct ptp_tlv *tlv = (struct ptp_tlv *)mgmt_tlv;
 	struct ptp_tlv_container *container;
 	uint8_t *data;
 	uint16_t data_lenght;
@@ -59,7 +58,7 @@ static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *mgmt_tlv, uint16_t length)
 		}
 		break;
 	case PTP_MGMT_CLOCK_DESCRIPTION:
-		container = CONTAINER_OF(&tlv, struct ptp_tlv_container, tlv);
+		container = CONTAINER_OF((void *)mgmt_tlv, struct ptp_tlv_container, tlv);
 
 		struct ptp_tlv_mgmt_clock_desc *clock_desc = &container->clock_desc;
 		data = mgmt_tlv->data;
@@ -171,7 +170,7 @@ static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *mgmt_tlv, uint16_t length)
 
 		break;
 	case PTP_MGMT_USER_DESCRIPTION:
-		container = CONTAINER_OF(&tlv, struct ptp_tlv_container, tlv);
+		container = CONTAINER_OF((void *)mgmt_tlv, struct ptp_tlv_container, tlv);
 
 		if (length < sizeof(struct ptp_text)) {
 			return -EBADMSG;
@@ -296,9 +295,9 @@ static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *mgmt_tlv)
 
 	switch (id) {
 	case PTP_MGMT_CLOCK_DESCRIPTION:
-		struct ptp_tlv *tlv = (struct ptp_tlv *)mgmt_tlv;
-		struct ptp_tlv_container *container =
-			CONTAINER_OF(&tlv, struct ptp_tlv_container, tlv);
+		struct ptp_tlv_container *container = CONTAINER_OF((void *)mgmt_tlv,
+								   struct ptp_tlv_container,
+								   tlv);
 		struct ptp_tlv_mgmt_clock_desc *clock_desc = &container->clock_desc;
 
 		tlv_htons(&clock_desc->type);

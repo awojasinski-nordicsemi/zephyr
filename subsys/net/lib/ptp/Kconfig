@@ -1,8 +1,9 @@
 menuconfig PTP
 	bool "IEEE 1588 (PTP) support [EXPERIMENTAL]"
 	select EXPERIMENTAL
-	select NET_PKT_TIMESTAMP
-	depends on PTP_CLOCK && NET_L2_ETHERNET && !NET_L2_PTP
+	select NET_SOCKETS
+	select NET_L2_PTP
+	depends on NET_L2_ETHERNET
 	help
 	  Enable PTP Stack that send and receives PTP packets
 	  and handles network packet timestamps. The protocol's implementation

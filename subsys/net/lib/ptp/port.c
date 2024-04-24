@@ -261,7 +261,12 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 		resp->header.sequence_id       = port->seq_id.sync;
 		resp->header.log_msg_interval  = port->port_ds.log_sync_interval;
 
-		resp->follow_up.precise_origin_timestamp = msg->timestamp.host;
+		resp->follow_up.precise_origin_timestamp.seconds_high =
+			(msg->timestamp.host.seconds >> 32) & UINT16_MAX;
+		resp->follow_up.precise_origin_timestamp.seconds_low =
+			msg->timestamp.host.seconds & UINT32_MAX;
+		resp->follow_up.precise_origin_timestamp.nanoseconds =
+			msg->timestamp.host.nanoseconds;
 
 		port_msg_send(port, resp);
 		ptp_msg_unref(resp);
@@ -347,10 +352,10 @@ static void port_sync_fup_ooo_handle(struct ptp_port *port, struct ptp_msg *msg)
 	    msg->header.sequence_id == last->header.sequence_id) {
 
 			port_synchronize(port,
-					 // HW timestamp from last
+					 last->timestamp.host,
 					 msg->timestamp.protocol,
 					 last->header.correction,
-					 msg->header.correction );
+					 msg->header.correction);
 
 			ptp_msg_unref(port->last_sync_fup);
 			port->last_sync_fup = NULL;
@@ -359,7 +364,7 @@ static void port_sync_fup_ooo_handle(struct ptp_port *port, struct ptp_msg *msg)
 		   msg->header.sequence_id == last->header.sequence_id) {
 
 			port_synchronize(port,
-					 // HW timestamp from msg
+					 msg->timestamp.host,
 					 last->timestamp.protocol,
 					 msg->header.correction,
 					 last->header.correction);
@@ -426,7 +431,7 @@ static void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	if (!(msg->header.flags[0] && PTP_MSG_TWO_STEP_FLAG)) {
 		// TODO adjust PTP Clock
 		port_synchronize(port,
-				 // ingress timestamp,
+				 msg->timestamp.host,
 				 msg->timestamp.protocol,
 				 msg->header.correction,
 				 0);
@@ -681,7 +686,7 @@ static int port_management_resp_tlv_fill(struct ptp_port *port,
 	struct ptp_tlv *tlv;
 	struct ptp_tlv_mgmt *mgmt;
 	struct ptp_tlv_container *container  = ptp_tlv_alloc();
-	int length;
+	int length = 0;
 
 	if (!container) {
 		return -ENOMEM;
@@ -840,7 +845,7 @@ static void port_management_forward(struct ptp_port *ingress, struct ptp_msg *ms
 	struct ptp_clock *clock = ingress->clock;
 	struct ptp_port *port;
 
-	if (port->clock->default_ds.type != PTP_CLOCK_TYPE_BOUNDARY) {
+	if (clock->default_ds.type != PTP_CLOCK_TYPE_BOUNDARY) {
 		/* Clocks other than Boundary Clock shouldn't retransmit messages. */
 		return;
 	}

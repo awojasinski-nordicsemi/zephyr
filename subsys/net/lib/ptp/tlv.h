@@ -146,7 +146,7 @@ enum ptp_mgmt_err {
 struct ptp_tlv_pad {
 	uint16_t type;
 	uint16_t length;
-	uint8_t  pad[0];
+	uint8_t  pad[];
 } __packed;
 
 /**
@@ -159,7 +159,7 @@ struct ptp_tlv_org {
 	uint16_t length;
 	uint8_t  id[3];
 	uint8_t  subtype[3];
-	uint8_t  data[0];
+	uint8_t  data[];
 } __packed;
 
 /**
@@ -171,7 +171,7 @@ struct ptp_tlv_mgmt {
 	uint16_t type;
 	uint16_t length;
 	uint16_t id;
-	uint8_t  data[0];
+	uint8_t  data[];
 } __packed;
 
 /**

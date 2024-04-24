@@ -18,6 +18,14 @@ LOG_MODULE_REGISTER(net_ptp_transport, CONFIG_PTP_LOG_LEVEL);
 #define IP_MULTICAST_IP "224.0.1.129"
 #define IP6_MULTICAST_IP "FF0E:0:0:0:0:0:0:181"
 
+#if CONFIG_PTP_UDP_IPv4_PROTOCOL
+static struct in_addr mcast_addr;
+#elif CONFIG_PTP_UDP_IPv6_PROTOCOL
+static struct in6_addr mcast_addr;
+#else
+#error "Choosen PTP transport protocol not implemented"
+#endif
+
 static int transport_socket_open(struct net_if *iface, struct sockaddr *addr, const char *name)
 {
 	static const int feature_on = 1;
@@ -54,9 +62,39 @@ error:
 	return -1;
 }
 
-static int transport_send()
+static int transport_send(int socket, void *buf, int lenght, struct sockaddr *addr)
 {
-	return 0;
+	struct sockaddr m_addr;
+	socklen_t addrlen;
+	int cnt;
+
+	if (!addr) {
+#if CONFIG_PTP_IPv4_PROTOCOL
+		struct sockaddr_in *mcast = (struct sockaddr_in *)&mcast_addr;
+
+		mcast->sin_family = AF_INET;
+		mcast->sin_addr = mcast_addr;
+		mcast->sin_port = htons(SOCKET_EVENT_PORT);
+#elif CONFIG_PTP_IPv6_PROTOCOL
+		struct sockaddr_in6 *mcast = (struct sockaddr_in6 *)&mcast_addr;
+
+		mcast->sin6_family = AF_INET6;
+		mcast->sin6_addr = mcast_addr;
+		mcast->sin6_port = htons(SOCKET_EVENT_PORT);
+#endif
+
+		addr = &m_addr;
+	}
+
+	addrlen = IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL) ? NET_IPV4_ADDR_SIZE : NET_IPV6_ADDR_SIZE;
+	cnt = zsock_sendto(socket, buf, lenght, 0, addr, addrlen);
+
+	if (cnt < 1) {
+		LOG_ERR("Failed to send message");
+		return -1;
+	}
+
+	return cnt;
 }
 
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
@@ -66,7 +104,6 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 	socklen_t length;
 	int socket, ret, ttl = 1;
 	char buf[INTERFACE_NAME_LEN];
-	struct in_addr mcast_addr;
 	struct ip_mreqn mreqn;
 	struct sockaddr_in addr = {
 		.sin_family = AF_INET,
@@ -75,7 +112,9 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 	};
 
 	ret = net_if_get_name(iface, buf, INTERFACE_NAME_LEN);
-	socket = transport_socket_open(iface, (struct sockaddr *)&addr, ret == -ENOTSUP ? NULL : buf);
+	socket = transport_socket_open(iface,
+				       (struct sockaddr *)&addr,
+				       ret == -ENOTSUP ? NULL : buf);
 
 	if (socket < 0) {
 		return -1;
@@ -83,11 +122,6 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 
 	if (zsock_setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl))) {
 		LOG_ERR("Failed to set ip multicast ttl socket option");
-		goto error;
-	}
-
-	if (net_addr_pton(addr.sin_family, IP_MULTICAST_IP, &mcast_addr)) {
-		LOG_ERR("Couldn't resolve multicast IP address");
 		goto error;
 	}
 
@@ -124,7 +158,6 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 	socklen_t length;
 	int socket, ret, hops = 1;
 	char buf[INTERFACE_NAME_LEN];
-	struct in6_addr mcast_addr;
 	struct ipv6_mreq mreqn;
 	struct sockaddr_in6 addr = {
 		.sin6_family = AF_INET6,
@@ -133,7 +166,9 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 	};
 
 	ret = net_if_get_name(iface, buf, INTERFACE_NAME_LEN);
-	socket = transport_socket_open(iface, (struct sockaddr *)&addr, ret == -ENOTSUP ? NULL : buf);
+	socket = transport_socket_open(iface,
+				       (struct sockaddr *)&addr,
+				       ret == -ENOTSUP ? NULL : buf);
 
 	if (socket < 0) {
 		return -1;
@@ -141,11 +176,6 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 
 	if (zsock_setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops))) {
 		LOG_ERR("Failed to set ip multicast hops socket option");
-		goto error;
-	}
-
-	if (net_addr_pton(addr.sin6_family, IP6_MULTICAST_IP, &mcast_addr)) {
-		LOG_ERR("Couldn't resolve multicast IP address");
 		goto error;
 	}
 
@@ -175,12 +205,17 @@ error:
 	zsock_close(socket);
 	return -1;
 }
-#else
-#error "Choosen PTP transport protocol not implemented"
 #endif
 
 int ptp_transport_open(struct ptp_port *port)
 {
+	if (net_addr_pton(IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL) ? AF_INET : AF_INET6,
+			  IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL) ? IP_MULTICAST_IP : IP6_MULTICAST_IP,
+			  &mcast_addr)) {
+		LOG_ERR("Couldn't resolve multicast IP address");
+		return -1;
+	}
+
 	int socket = transport_udp_open(port->iface, SOCKET_EVENT_PORT);
 
 	if (socket == -1) {
@@ -207,12 +242,16 @@ int ptp_transport_close(struct ptp_port *port)
 
 int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg)
 {
-	return transport_send();
+	int length = ntohs(msg->header.msg_length);
+
+	return transport_send(port->socket, msg, length, NULL);
 }
 
 int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg)
 {
-	return transport_send();
+	int length = ntohs(msg->header.msg_length);
+
+	return transport_send(port->socket, msg, length, &msg->addr);
 }
 
 int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg)
@@ -220,12 +259,11 @@ int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg)
 	return 0;
 }
 
-#if 0
 int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg)
 {
 	int err = 0, cnt = 0;
 	uint8_t ctrl[256];
-	struct cmsghdr cm;
+	struct cmsghdr *cm;
 	struct msghdr msghdr;
 	struct iovec iov = {
 		.iov_base = msg,
@@ -237,15 +275,24 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg)
 	msghdr.msg_control = ctrl;
 	msghdr.msg_controllen = sizeof(ctrl);
 
-	cnt = zsock_recvmsg(, &msghdr, 0);
+	cnt = zsock_recvmsg(port->socket, &msghdr, ZSOCK_MSG_DONTWAIT);
+
+	if (cnt < 0) {
+		LOG_ERR("");
+	}
 
 	for (cm = CMSG_FIRSTHDR(&msghdr); cm != NULL; cm = CMSG_NXTHDR(&msghdr, cm)) {
+		if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SO_TIMESTAMPING) {
 
+		}
+
+		if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SO_TIMESTAMPNS) {
+
+		}
 	}
 
 	return err;
 }
-#endif
 
 int ptp_transport_protocol_addr(struct ptp_port *port, uint8_t *addr)
 {

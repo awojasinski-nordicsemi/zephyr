@@ -88,7 +88,7 @@ struct ptp_announce_msg {
 	ptp_clk_id		      gm_id;
 	uint16_t		      steps_rm;
 	uint8_t			      time_src;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -97,7 +97,7 @@ struct ptp_announce_msg {
 struct ptp_sync_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp origin_timestamp;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -106,7 +106,7 @@ struct ptp_sync_msg {
 struct ptp_delay_req_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp origin_timestamp;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -115,7 +115,7 @@ struct ptp_delay_req_msg {
 struct ptp_follow_up_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp precise_origin_timestamp;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -125,7 +125,7 @@ struct ptp_delay_resp_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp receive_timestamp;
 	struct ptp_port_id	      req_port_id;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -135,7 +135,7 @@ struct ptp_pdelay_req_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp origin_timestamp;
 	struct ptp_port_id	      reserved; /* make it the same length as ptp_pdelay_resp */
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -145,7 +145,7 @@ struct ptp_pdelay_resp_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp req_receipt_timestamp;
 	struct ptp_port_id	      req_port_id;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -155,7 +155,7 @@ struct ptp_pdelay_resp_follow_up_msg {
 	struct ptp_header	      hdr;
 	struct ptp_protocol_timestamp resp_origin_timestamp;
 	struct ptp_port_id	      req_port_id;
-	uint8_t			      suffix[0];
+	uint8_t			      suffix[];
 } __packed;
 
 /**
@@ -164,7 +164,7 @@ struct ptp_pdelay_resp_follow_up_msg {
 struct ptp_signaling_msg {
 	struct ptp_header  hdr;
 	struct ptp_port_id target_port_id;
-	uint8_t		   suffix[0];
+	uint8_t		   suffix[];
 } __packed;
 
 /**
@@ -177,7 +177,7 @@ struct ptp_management_msg {
 	uint8_t		   boundry_hops;
 	uint8_t		   action:5;
 	uint8_t		   reserved;
-	uint8_t		   suffix[0];
+	uint8_t		   suffix[];
 } __packed;
 
 /**
@@ -199,8 +199,14 @@ struct ptp_msg {
 		uint8_t				     mtu[1500]; // MTU of Ethernet II frame
 	} __packed;
 	struct {
+		/**
+		 * Timestamp extracted from the message in a host binary format.
+		 * Depending on the messahe type the value comes from different
+		 * field of the message.
+		 */
 		struct ptp_timestamp protocol;
-		struct ptp_timestamp host;
+		struct ptp_timestamp host; // Ingress timestamp on the host side.
+
 	} timestamp;
 	int ref;
 	struct sockaddr addr;

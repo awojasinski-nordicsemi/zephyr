@@ -14,8 +14,6 @@ LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/socket.h>
 
-#include "net_private.h"
-
 #include "bmca.h"
 #include "ddt.h"
 #include "clock.h"
