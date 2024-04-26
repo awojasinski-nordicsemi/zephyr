@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp_transport, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp_transport, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/net/socket.h>
 
@@ -26,10 +26,11 @@ static struct in6_addr mcast_addr;
 #error "Choosen PTP transport protocol not implemented"
 #endif
 
-static int transport_socket_open(struct net_if *iface, struct sockaddr *addr, const char *name)
+static int transport_socket_open(struct net_if *iface, struct sockaddr *addr)
 {
 	static const int feature_on = 1;
-	int socket = zsock_socket(PF_PACKET, SOCK_DGRAM, IPPROTO_UDP);
+	struct ifreq ifreq = { 0 };
+	int socket = zsock_socket(addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 
 	if (net_if_get_by_iface(iface) < 0) {
 		LOG_ERR("Failed to obtain interface index");
@@ -37,7 +38,6 @@ static int transport_socket_open(struct net_if *iface, struct sockaddr *addr, co
 	}
 
 	if (socket < 0) {
-		LOG_ERR("Failed to open socket");
 		return -1;
 	}
 
@@ -51,7 +51,13 @@ static int transport_socket_open(struct net_if *iface, struct sockaddr *addr, co
 		goto error;
 	}
 
-	if (zsock_setsockopt(socket, SOL_SOCKET, SO_BINDTODEVICE, name, strlen(name))) {
+	int cnt = net_if_get_name(iface, ifreq.ifr_name, INTERFACE_NAME_LEN);
+
+	if (cnt > 0 && zsock_setsockopt(socket,
+				        SOL_SOCKET,
+				        SO_BINDTODEVICE,
+				        ifreq.ifr_name,
+				        sizeof(ifreq.ifr_name))) {
 		LOG_ERR("Failed to set socket binding to an interface");
 		goto error;
 	}
@@ -102,8 +108,7 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 {
 	uint8_t tos;
 	socklen_t length;
-	int socket, ret, ttl = 1;
-	char buf[INTERFACE_NAME_LEN];
+	int socket, ttl = 1;
 	struct ip_mreqn mreqn;
 	struct sockaddr_in addr = {
 		.sin_family = AF_INET,
@@ -111,10 +116,7 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 		.sin_port = htons(port),
 	};
 
-	ret = net_if_get_name(iface, buf, INTERFACE_NAME_LEN);
-	socket = transport_socket_open(iface,
-				       (struct sockaddr *)&addr,
-				       ret == -ENOTSUP ? NULL : buf);
+	socket = transport_socket_open(iface, (struct sockaddr *)&addr);
 
 	if (socket < 0) {
 		return -1;
@@ -126,8 +128,8 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 	}
 
 	memcpy(&mreqn.imr_multiaddr, &mcast_addr, sizeof(struct in_addr));
+	memcpy(&mreqn.imr_address, &addr.sin_addr, sizeof(struct in_addr));
 	mreqn.imr_ifindex = net_if_get_by_iface(iface);
-	mreqn.imr_address = addr.sin_addr;
 
 	if (zsock_setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreqn, sizeof(mreqn))) {
 		LOG_ERR("Failed to join multicast group");
@@ -156,8 +158,7 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 {
 	uint8_t tclass;
 	socklen_t length;
-	int socket, ret, hops = 1;
-	char buf[INTERFACE_NAME_LEN];
+	int socket, hops = 1;
 	struct ipv6_mreq mreqn;
 	struct sockaddr_in6 addr = {
 		.sin6_family = AF_INET6,
@@ -165,10 +166,7 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 		.sin6_port = htons(port)
 	};
 
-	ret = net_if_get_name(iface, buf, INTERFACE_NAME_LEN);
-	socket = transport_socket_open(iface,
-				       (struct sockaddr *)&addr,
-				       ret == -ENOTSUP ? NULL : buf);
+	socket = transport_socket_open(iface, (struct sockaddr *)&addr;
 
 	if (socket < 0) {
 		return -1;
@@ -181,7 +179,6 @@ static int transport_udp_open(struct net_if *iface, uint16_t port)
 
 	memcpy(&mreqn.ipv6mr_multiaddr, &mcast_addr, sizeof(struct in6_addr));
 	mreqn.ipv6mr_ifindex = net_if_get_by_iface(iface);
-	mreqn.
 
 	if (zsock_setsockopt(socket, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreqn, sizeof(mreqn))) {
 		LOG_ERR("Failed to join multicast group");

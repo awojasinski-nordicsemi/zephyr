@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp_clock, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp_clock, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +45,7 @@ static const char *clock_id_str(ptp_clk_id *clock_id)
 	static char id[] = "FF:FF:FF:FF:FF:FF:FF:FF";
 	uint8_t *cid = clock_id->id;
 
-	snprintk(id, strlen(id), "%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
+	snprintk(id, sizeof(id), "%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
 		 cid[0],
 		 cid[1],
 		 cid[2],

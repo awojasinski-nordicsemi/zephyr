@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp_port, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdbool.h>
 
@@ -23,24 +23,6 @@ LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
 #define DEFAULT_LOG_MSG_INTERVAL (0x7F)
 
 struct ptp_port ports[CONFIG_PTP_NUM_PORTS];
-
-static struct ptp_port *port_alloc(void)
-{
-	for (int i = 0; i < CONFIG_PTP_NUM_PORTS; i++) {
-		if (!ports[i].clock) {
-			return ports + i;
-		}
-	}
-	LOG_ERR("Couldn't allocate memory for new PTP Port instance");
-	return NULL;
-}
-
-#if 0
-static void port_free(struct ptp_port *port)
-{
-	memset(port, 0, sizeof(*port));
-}
-#endif
 
 static const char *port_id_str(struct ptp_port_id *port_id)
 {
@@ -64,15 +46,15 @@ static const char *port_id_str(struct ptp_port_id *port_id)
 static const char *port_state_str(enum ptp_port_state state) {
 	static const char *states[] = {
 		[PTP_PS_INITIALIZING] = "INITIALIZING",
-		[PTP_PS_FAULTY] =	"FAULTY",
-		[PTP_PS_DISABLED] =	"DISABLED",
-		[PTP_PS_LISTENING] =	"LISTENING",
-		[PTP_PS_PRE_MASTER] =	"PRE MASTER",
-		[PTP_PS_MASTER] =	"MASTER",
+		[PTP_PS_FAULTY]	      = "FAULTY",
+		[PTP_PS_DISABLED]     = "DISABLED",
+		[PTP_PS_LISTENING]    = "LISTENING",
+		[PTP_PS_PRE_MASTER]   = "PRE MASTER",
+		[PTP_PS_MASTER]	      = "MASTER",
 		[PTP_PS_GRAND_MASTER] = "GRAND MASTER",
-		[PTP_PS_PASSIVE] =	 "PASSIVE",
+		[PTP_PS_PASSIVE]      = "PASSIVE",
 		[PTP_PS_UNCALIBRATED] = "UNCALIBRATED",
-		[PTP_PS_SLAVE] =	"SLAVE",
+		[PTP_PS_SLAVE]	      = "SLAVE",
 	};
 
 	return states[state];
@@ -111,8 +93,14 @@ static void port_disable(struct ptp_port *port)
 	k_timer_stop(&port->sync_tx_timer);
 	k_timer_stop(&port->qualification_timer);
 
+	port->announce_t_expired = false;
+	port->master_announce_t_expired = false;
+	port->delay_t_expired = false;
+	port->sync_rx_t_expired = false;
+	port->sync_tx_t_expired = false;
+	port->qualification_t_expired = false;
+
 	port->best = NULL;
-	port->socket = -1;
 	ptp_clock_pollfd_invalidate(port->clock);
 	LOG_DBG("Port %d disabled", port->port_ds.id.port_number);
 }
@@ -158,77 +146,45 @@ static void port_timer_set_timeout_random(struct k_timer *timer,
 	k_timer_start(timer, K_NSEC(timeout), K_NO_WAIT);
 }
 
-static int port_initialize(struct ptp_port *port)
+static int port_enable(struct ptp_port *port)
 {
+	LOG_DBG("Enabling port");
+	while (!net_if_is_up(port->iface)) {
+		k_sleep(K_SECONDS(1));
+	}
 	if (ptp_transport_open(port)) {
-		LOG_ERR("Couldn't open socket.");
+		LOG_ERR("Couldn't open socket on Port %d.", port->port_ds.id.port_number);
 		return -1;
 	}
+
+	port->port_ds.enable = true;
 
 	port_timer_set_timeout_random(&port->announce_timer,
 				      port->port_ds.announce_receipt_timeout,
 				      1,
 				      port->port_ds.log_announce_interval);
 	ptp_clock_pollfd_invalidate(port->clock);
-	LOG_DBG("Port %d initialized", port->port_ds.id.port_number);
+	LOG_DBG("Port %d opened", port->port_ds.id.port_number);
 	return 0;
 }
 
-static void port_announce_timer_to(struct k_timer *timer)
+static void port_timer_to_handler(struct k_timer *timer)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
 	struct ptp_port *port;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		if (timer == &port->announce_timer) {
+		if (timer == &port->master_announce_timer) {
+			port->master_announce_t_expired = true;
+		} else if (timer == &port->announce_timer) {
 			port->announce_t_expired = true;
-		}
-	}
-}
-
-static void port_delay_timer_to(struct k_timer *timer)
-{
-	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
-	struct ptp_port *port;
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		if (timer == &port->delay_timer) {
-			port->delay_t_expired = true;
-		}
-	}
-}
-
-static void port_sync_rx_timer_to(struct k_timer *timer)
-{
-	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
-	struct ptp_port *port;
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		if (timer == &port->sync_rx_timer) {
+		} else if (timer == &port->sync_rx_timer) {
 			port->sync_rx_t_expired = true;
-		}
-	}
-}
-
-static void port_sync_tx_timer_to(struct k_timer *timer)
-{
-	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
-	struct ptp_port *port;
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		if (timer == &port->sync_tx_timer) {
+		} else if (timer == &port->delay_timer) {
+			port->delay_t_expired = true;
+		} else if (timer == &port->sync_tx_timer) {
 			port->sync_tx_t_expired = true;
-		}
-	}
-}
-
-static void port_qualification_timer_to(struct k_timer *timer)
-{
-	struct ptp_clock *clock = (struct ptp_clock *)k_timer_user_data_get(timer);
-	struct ptp_port *port;
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		if (timer == &port->qualification_timer) {
+		} else if (timer == &port->qualification_timer) {
 			port->qualification_t_expired = true;
 		}
 	}
@@ -261,12 +217,9 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 		resp->header.sequence_id       = port->seq_id.sync;
 		resp->header.log_msg_interval  = port->port_ds.log_sync_interval;
 
-		resp->follow_up.precise_origin_timestamp.seconds_high =
-			(msg->timestamp.host.seconds >> 32) & UINT16_MAX;
-		resp->follow_up.precise_origin_timestamp.seconds_low =
-			msg->timestamp.host.seconds & UINT32_MAX;
-		resp->follow_up.precise_origin_timestamp.nanoseconds =
-			msg->timestamp.host.nanoseconds;
+		resp->follow_up.precise_origin_timestamp.seconds_high = pkt->timestamp._sec.high;
+		resp->follow_up.precise_origin_timestamp.seconds_low = pkt->timestamp._sec.low;
+		resp->follow_up.precise_origin_timestamp.nanoseconds = pkt->timestamp.nanosecond;
 
 		port_msg_send(port, resp);
 		ptp_msg_unref(resp);
@@ -280,6 +233,7 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 {
 	struct ptp_port *port = ptp_clock_get_port_from_iface(pkt->iface);
+	struct ptp_msg *msg = ptp_msg_get_from_pkt(pkt);
 
 	if (!port) {
 		return;
@@ -288,22 +242,27 @@ static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 	if (ptp_msg_type_get(ptp_msg_get_from_pkt(pkt)) == PTP_MSG_PDELAY_RESP) {
 
 		struct ptp_clock *clock = port->clock;
-		struct ptp_msg *msg = ptp_msg_alloc();
+		struct ptp_msg *resp = ptp_msg_alloc();
 
-		if (!msg) {
+		if (!resp) {
 			return;
 		}
 
-		msg->header.type_major_sdo_id = PTP_MSG_PDELAY_RESP_FOLLOW_UP;
-		msg->header.version	      = PTP_VERSION;
-		msg->header.msg_length	      = sizeof(struct ptp_pdelay_resp_follow_up_msg);
-		msg->header.domain_number     = clock->default_ds.domain;
-		msg->header.flags[1]	      = clock->time_prop_ds.flags[1];
-		msg->header.src_port_id	      = port->port_ds.id;
-		msg->header.sequence_id	      = port->seq_id.delay;
-		msg->header.log_msg_interval  = port->port_ds.log_sync_interval;
+		resp->header.type_major_sdo_id = PTP_MSG_PDELAY_RESP_FOLLOW_UP;
+		resp->header.version	       = PTP_VERSION;
+		resp->header.msg_length	       = sizeof(struct ptp_pdelay_resp_follow_up_msg);
+		resp->header.domain_number     = clock->default_ds.domain;
+		resp->header.flags[1]	       = clock->time_prop_ds.flags;
+		resp->header.src_port_id       = port->port_ds.id;
+		resp->header.sequence_id       = port->seq_id.delay;
+		resp->header.log_msg_interval  = port->port_ds.log_sync_interval;
 
-		msg->pdelay_resp_follow_up.resp_origin_timestamp = pkt->timestamp;
+		resp->pdelay_resp_follow_up.resp_origin_timestamp.seconds_high =
+			pkt->timestamp._sec.high;
+		resp->pdelay_resp_follow_up.resp_origin_timestamp.seconds_low =
+			pkt->timestamp._sec.low;
+		resp->pdelay_resp_follow_up.resp_origin_timestamp.nanoseconds =
+			pkt->timestamp.nanosecond;
 
 		port_msg_send(port, msg);
 		ptp_msg_unref(msg);
@@ -1168,7 +1127,7 @@ static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_t
 	return event;
 }
 
-void ptp_port_open(struct net_if *iface, void *user_data)
+void ptp_port_init(struct net_if *iface, void *user_data)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)user_data;
 
@@ -1181,12 +1140,7 @@ void ptp_port_open(struct net_if *iface, void *user_data)
 		return;
 	}
 
-	struct ptp_port *port = port_alloc();
-
-	if (!port) {
-		LOG_ERR("Couldn't open the PTP Port.");
-		return;
-	}
+	struct ptp_port *port = ports + clock->default_ds.n_ports;
 
 	port->clock = clock;
 	port->iface = iface;
@@ -1199,17 +1153,18 @@ void ptp_port_open(struct net_if *iface, void *user_data)
 	port_ds_init(port);
 	sys_slist_init(&port->foreign_list);
 
-	port_timer_init(&port->delay_timer, port_delay_timer_to, user_data);
-	port_timer_init(&port->announce_timer, port_announce_timer_to, user_data);
-	port_timer_init(&port->sync_rx_timer, port_sync_rx_timer_to, user_data);
-	port_timer_init(&port->sync_tx_timer, port_sync_tx_timer_to, user_data);
-	port_timer_init(&port->qualification_timer, port_qualification_timer_to, user_data);
+	port_timer_init(&port->delay_timer, port_timer_to_handler, user_data);
+	port_timer_init(&port->announce_timer, port_timer_to_handler, user_data);
+	port_timer_init(&port->master_announce_timer, port_timer_to_handler, user_data);
+	port_timer_init(&port->sync_rx_timer, port_timer_to_handler, user_data);
+	port_timer_init(&port->sync_tx_timer, port_timer_to_handler, user_data);
+	port_timer_init(&port->qualification_timer, port_timer_to_handler, user_data);
 
 	clock->default_ds.n_ports++;
 
 	ptp_clock_pollfd_invalidate(clock);
 	sys_slist_append(&clock->ports_list, &port->node);
-	LOG_DBG("Port %d opened", port->port_ds.id.port_number);
+	LOG_DBG("Port %d initialized", port->port_ds.id.port_number);
 }
 
 void ptp_port_close(struct ptp_port *port)
@@ -1415,7 +1370,7 @@ int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool
 		if (ptp_port_enabled(port)) {
 			port_disable(port);
 		}
-		if (port_initialize(port)) {
+		if (port_enable(port)) {
 			event = PTP_EVT_FAULT_DETECTED;
 		} else {
 			event = PTP_EVT_INIT_COMPLETE;
@@ -1474,7 +1429,7 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 			port->port_ds.id.port_number,
 			port_id_str(&msg->header.src_port_id));
 
-		foreign = k_malloc(sizeof(*foreign));
+		foreign = 0;//k_malloc(sizeof(*foreign));
 		if (!foreign) {
 			LOG_ERR("Couldn't allocate memory for new foreign master");
 			return 0;

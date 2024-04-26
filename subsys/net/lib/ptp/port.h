@@ -70,7 +70,7 @@ struct ptp_port {
  * @param[in] iface Pointer to current network interface.
  * @param[in] user_data Pointer to @ref ptp_clock structure.
 */
-void ptp_port_open(struct net_if *iface, void *user_data);
+void ptp_port_init(struct net_if *iface, void *user_data);
 
 /**
  * @brief Function returning PTP Port's current state.

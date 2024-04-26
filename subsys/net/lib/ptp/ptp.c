@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/drivers/ptp_clock.h>
 #include <zephyr/net/ethernet_mgmt.h>
@@ -13,15 +13,26 @@ LOG_MODULE_REGISTER(net_ptp, CONFIG_PTP_LOG_LEVEL);
 #include <zephyr/net/ptp.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/random/random.h>
+#include <zephyr/net/net_mgmt.h>
+#include <zephyr/net/net_event.h>
+#include <zephyr/net/conn_mgr_monitor.h>
 
 #include "bmca.h"
 #include "clock.h"
 #include "port.h"
 
+#define NET_MGMT_EVT_MASK (NET_EVENT_L4_CONNECTED | \
+			   NET_EVENT_L4_DISCONNECTED)
+
 K_KERNEL_STACK_DEFINE(ptp_stack, CONFIG_PTP_STACK_SIZE);
 K_FIFO_DEFINE(ptp_rx_queue);
+K_SEM_DEFINE(ptp_sem, 0, 1);
 
 static struct k_thread ptp_thread_data;
+
+#if CONFIG_NET_CONNECTION_MANAGER
+static struct net_mgmt_event_callback mgmt_cb;
+#endif
 
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
@@ -76,6 +87,26 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 	}
 }
 
+#if CONFIG_NET_CONNECTION_MANAGER
+static void event_handler(struct net_mgmt_event_callback *cb,
+			  uint32_t mgmt_event,
+			  struct net_if *iface)
+{
+	switch (mgmt_event) {
+	case NET_EVENT_L4_CONNECTED:
+		LOG_DBG("Network connected");
+		k_sem_give(&ptp_sem);
+		break;
+	case NET_EVENT_L4_DISCONNECTED:
+		LOG_DBG("Network disconnected");
+		k_sem_reset(&ptp_sem);
+		break;
+	default:
+		break;
+	}
+}
+#endif
+
 static void ptp_thread(void *p1, void *p2, void *p3)
 {
 	struct ptp_clock *clock = (struct ptp_clock *)p1;
@@ -85,6 +116,15 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
+
+	// TODO take semaphore and wait for interface to be up
+	k_sem_take(&ptp_sem, K_FOREVER);
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		ptp_port_event_handle(port, PTP_EVT_INITIALIZE, false);
+	}
+
+	k_yield();
 
 	while (1) {
 
@@ -127,7 +167,7 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 			clock->state_decision_event = false;
 		}
 
-		k_yield();
+		k_sleep(K_SECONDS(10));
 	}
 }
 
@@ -135,16 +175,22 @@ static int ptp_init(void)
 {
 	k_tid_t tid;
 	struct ptp_clock *clock = ptp_clock_init();
-	struct ptp_port *port;
 
 	if (!clock) {
 		return -ENODEV;
 	}
 
-	net_if_foreach(ptp_port_open, (void *)clock);
-	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		ptp_port_event_handle(port, PTP_EVT_INITIALIZE, false);
+	LOG_INF("Initializing PTP stack");
+
+
+	if (IS_ENABLED(CONFIG_NET_CONNECTION_MANAGER)) {
+		net_mgmt_init_event_callback(&mgmt_cb, event_handler, EVENT_MASK);
+		net_mgmt_add_event_callback(&mgmt_cb);
+
+		conn_mgr_mon_resend_status();
 	}
+
+	net_if_foreach(ptp_port_init, (void *)clock);
 
 	tid = k_thread_create(&ptp_thread_data, ptp_stack, K_KERNEL_STACK_SIZEOF(ptp_stack),
 			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), 0, K_NO_WAIT);

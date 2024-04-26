@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp_port, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp_tlv, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdbool.h>
 

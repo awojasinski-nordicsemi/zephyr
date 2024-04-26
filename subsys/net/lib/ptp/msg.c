@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp_msg, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp_msg, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/ptp_clock.h>
@@ -58,6 +58,8 @@ static const char *msg_type_str(struct ptp_msg *msg)
 		return "Signaling";
 	case PTP_MSG_MANAGEMENT:
 		return "Management";
+	default:
+		return "Not recognized";
 	}
 }
 
@@ -268,11 +270,26 @@ int ptp_msg_announce_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
 	return memcmp(&m1->announce.gm_priority1, &m2->announce.gm_priority1, len);
 }
 
-struct ptp_msg *ptp_msg_get_from_pkt(const struct net_pkt *pkt)
+struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt)
 {
-	// TODO: Strip UDP headers from net_pkt
+	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(ip_access,
+#if CONFIG_PTP_UDP_IPv4_PROTOCOL
+		struct net_ipv4_hdr
+#else
+		struct net_ipv6_hdr
+#endif
+		);
+	uint8_t *buf;
+	int offset = pkt->ip_hdr_len;
 
-	return NULL;
+	buf = (uint8_t *)net_pkt_get_data(pkt, &ip_access);
+
+	if (!buf) {
+		LOG_ERR("Couldn't retrive PTP message from net packet");
+		return NULL;
+	}
+
+	return (struct ptp_msg *)(buf + offset);
 }
 
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)

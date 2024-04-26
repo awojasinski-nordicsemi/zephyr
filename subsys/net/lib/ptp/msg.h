@@ -278,7 +278,7 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg);
  *
  * @return Pointer to a PTP message.
  */
-struct ptp_msg *ptp_msg_get_from_pkt(const struct net_pkt *pkt);
+struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
 
 /**
  * @brief Function preparing message right before transmission.

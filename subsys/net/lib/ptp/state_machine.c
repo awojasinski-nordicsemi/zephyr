@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_ptp_state_machine, CONFIG_PTP_LOG_LEVEL);
+LOG_MODULE_REGISTER(ptp_state_machine, CONFIG_PTP_LOG_LEVEL);
 
 #include "state_machine.h"
 
