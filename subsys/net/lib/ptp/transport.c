@@ -75,29 +75,28 @@ static int transport_send(int socket, void *buf, int lenght, struct sockaddr *ad
 	int cnt;
 
 	if (!addr) {
-#if CONFIG_PTP_IPv4_PROTOCOL
-		struct sockaddr_in *mcast = (struct sockaddr_in *)&mcast_addr;
+		if (IS_ENABLED(CONFIG_PTP_UDP_IPv4_PROTOCOL)) {
+			m_addr.sa_family = AF_INET;
+			net_sin(&m_addr)->sin_port = htons(SOCKET_EVENT_PORT);
+			net_sin(&m_addr)->sin_addr.s_addr = mcast_addr.s_addr;
 
-		mcast->sin_family = AF_INET;
-		mcast->sin_addr = mcast_addr;
-		mcast->sin_port = htons(SOCKET_EVENT_PORT);
-#elif CONFIG_PTP_IPv6_PROTOCOL
-		struct sockaddr_in6 *mcast = (struct sockaddr_in6 *)&mcast_addr;
-
-		mcast->sin6_family = AF_INET6;
-		mcast->sin6_addr = mcast_addr;
-		mcast->sin6_port = htons(SOCKET_EVENT_PORT);
-#endif
-
+		} else if (IS_ENABLED(CONFIG_PTP_UDP_IPv6_PROTOCOL)) {
+			m_addr.sa_family= AF_INET6;
+			net_sin6(&m_addr)->sin6_port = htons(SOCKET_EVENT_PORT);
+			memcpy(&net_sin6(&m_addr)->sin6_addr,
+			       &mcast_addr,
+			       sizeof(struct in6_addr));
+		}
 		addr = &m_addr;
 	}
 
-	addrlen = IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL) ? NET_IPV4_ADDR_SIZE : NET_IPV6_ADDR_SIZE;
+	addrlen = IS_ENABLED(CONFIG_PTP_UDP_IPv4_PROTOCOL) ? sizeof(struct sockaddr_in) :
+							     sizeof(struct sockaddr_in6);
 	cnt = zsock_sendto(socket, buf, lenght, 0, addr, addrlen);
 
 	if (cnt < 1) {
 		LOG_ERR("Failed to send message");
-		return -1;
+		return -EFAULT;
 	}
 
 	return cnt;
@@ -206,9 +205,9 @@ error:
 
 int ptp_transport_open(struct ptp_port *port)
 {
-	if (net_addr_pton(IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL) ? AF_INET : AF_INET6,
-			  IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL) ? IP_MULTICAST_IP : IP6_MULTICAST_IP,
-			  &mcast_addr)) {
+	if (net_addr_pton(IS_ENABLED(CONFIG_PTP_UDP_IPv4_PROTOCOL) ? AF_INET : AF_INET6,
+		IS_ENABLED(CONFIG_PTP_UDP_IPv4_PROTOCOL) ? IP_MULTICAST_IP : IP6_MULTICAST_IP,
+		&mcast_addr)) {
 		LOG_ERR("Couldn't resolve multicast IP address");
 		return -1;
 	}
@@ -295,12 +294,12 @@ int ptp_transport_protocol_addr(struct ptp_port *port, uint8_t *addr)
 {
 	int length = 0;
 
-	if (IS_ENABLED(CONFIG_PTP_IPv4_PROTOCOL)) {
+	if (IS_ENABLED(CONFIG_PTP_UDP_IPv4_PROTOCOL)) {
 		struct in_addr *ip = net_if_ipv4_get_global_addr(port->iface, NET_ADDR_PREFERRED);
 
 		length = NET_IPV4_ADDR_SIZE;
 		*addr = ip->s_addr;
-	} else if (IS_ENABLED(CONFIG_PTP_IPv6_PROTOCOL)) {
+	} else if (IS_ENABLED(CONFIG_PTP_UDP_IPv6_PROTOCOL)) {
 		struct in6_addr *ip = net_if_ipv6_get_global_addr(NET_ADDR_PREFERRED, &port->iface);
 
 		length = NET_IPV6_ADDR_SIZE;

@@ -30,9 +30,8 @@ K_SEM_DEFINE(ptp_sem, 0, 1);
 
 static struct k_thread ptp_thread_data;
 
-#if CONFIG_NET_CONNECTION_MANAGER
 static struct net_mgmt_event_callback mgmt_cb;
-#endif
+void event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event, struct net_if *iface);
 
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
@@ -180,14 +179,13 @@ static int ptp_init(void)
 		return -ENODEV;
 	}
 
-	LOG_INF("Initializing PTP stack");
-
-
 	if (IS_ENABLED(CONFIG_NET_CONNECTION_MANAGER)) {
-		net_mgmt_init_event_callback(&mgmt_cb, event_handler, EVENT_MASK);
+		net_mgmt_init_event_callback(&mgmt_cb, event_handler, NET_MGMT_EVT_MASK);
 		net_mgmt_add_event_callback(&mgmt_cb);
 
 		conn_mgr_mon_resend_status();
+	} else {
+		k_sem_give(&ptp_sem);
 	}
 
 	net_if_foreach(ptp_port_init, (void *)clock);

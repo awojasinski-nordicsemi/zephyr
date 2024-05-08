@@ -276,6 +276,8 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg);
  *
  * @param[in] pkt Pointer to the network packet.
  *
+ * @note Returned message has all data in the network byte order.
+ *
  * @return Pointer to a PTP message.
  */
 struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
@@ -285,10 +287,8 @@ struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt);
  *
  * @param[in] clock Pointer to the PTP Clock instance.
  * @param[in] msg   Pointer to the prepared PTP message.
- *
- * @return 0 on success, negative otherwise.
  */
-int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg);
+void ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg);
 
 /**
  * @brief Function preparing message for further processing after reception.

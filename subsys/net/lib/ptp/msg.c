@@ -12,6 +12,7 @@ LOG_MODULE_REGISTER(ptp_msg, CONFIG_PTP_LOG_LEVEL);
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/ptp.h>
+#include <zephyr/net/udp.h>
 
 #include "clock.h"
 #include "msg.h"
@@ -114,8 +115,6 @@ static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 		return 0;
 	}
 
-	sys_slist_init(&msg->tlvs);
-
 	while (lenght >= sizeof(struct ptp_tlv)) {
 		tlv_container = ptp_tlv_alloc();
 		if(!tlv_container) {
@@ -159,7 +158,7 @@ static int msg_tlv_preprocess(struct ptp_msg *msg, int lenght)
 	return suffix_len;
 }
 
-static void msg_tlv_postprocess(struct ptp_msg *msg)
+static void msg_tlv_pre_send(struct ptp_msg *msg)
 {
 	struct ptp_tlv_container *tlv_container;
 
@@ -225,15 +224,18 @@ static void msg_port_id_pre_send(struct ptp_port_id *port_id)
 struct ptp_msg *ptp_msg_alloc(void)
 {
 	struct msg_container *container = NULL;
+	int ret = k_mem_slab_alloc(&msg_slab, (void **)&container, K_FOREVER);
 
-	if (k_mem_slab_alloc(&msg_slab, (void **)&container, K_FOREVER)) {
-		memset(container, 0, sizeof(*container));
-		container->msg.ref++;
-		return &container->msg;
-	} else {
+	if (ret) {
 		LOG_ERR("Couldn't allocate memory for the message");
 		return NULL;
 	}
+
+	memset(container, 0, sizeof(*container));
+	sys_slist_init(&container->msg.tlvs);
+	container->msg.ref++;
+
+	return &container->msg;
 }
 
 void ptp_msg_unref(struct ptp_msg *msg)
@@ -272,24 +274,22 @@ int ptp_msg_announce_cmp(const struct ptp_msg *m1, const struct ptp_msg *m2)
 
 struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt)
 {
-	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(ip_access,
-#if CONFIG_PTP_UDP_IPv4_PROTOCOL
-		struct net_ipv4_hdr
-#else
-		struct net_ipv6_hdr
-#endif
-		);
-	uint8_t *buf;
-	int offset = pkt->ip_hdr_len;
+	struct net_udp_hdr *hdr = net_udp_get_hdr(pkt, NULL);
+	int payload = ntohs(hdr->len) - NET_UDPH_LEN;
+	struct ptp_msg *msg;
 
-	buf = (uint8_t *)net_pkt_get_data(pkt, &ip_access);
-
-	if (!buf) {
+	if (!hdr) {
 		LOG_ERR("Couldn't retrive PTP message from net packet");
 		return NULL;
 	}
 
-	return (struct ptp_msg *)(buf + offset);
+	msg = (struct ptp_msg*)((uintptr_t)hdr + NET_UDPH_LEN);
+
+	if (msg->header.version == PTP_VERSION && payload == ntohs(msg->header.msg_length)) {
+		return msg;
+	}
+
+	return NULL;
 }
 
 enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)
@@ -297,7 +297,7 @@ enum ptp_msg_type ptp_msg_type_get(const struct ptp_msg *msg)
 	return (enum ptp_msg_type)(msg->header.type_major_sdo_id & 0xF);
 }
 
-int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
+void ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 {
 	msg_header_pre_send(&msg->header);
 
@@ -340,8 +340,7 @@ int ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 		break;
 	}
 
-	msg_tlv_postprocess(msg);
-	return 0;
+	msg_tlv_pre_send(msg);
 }
 
 int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt)

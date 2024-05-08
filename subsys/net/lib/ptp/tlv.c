@@ -383,14 +383,15 @@ static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *mgmt_tlv)
 struct ptp_tlv_container *ptp_tlv_alloc(void)
 {
 	struct ptp_tlv_container *tlv_container = NULL;
+	int ret = k_mem_slab_alloc(&tlv_slab, (void **)&tlv_container, K_FOREVER);
 
-	if (k_mem_slab_alloc(&tlv_slab, (void **)&tlv_container, K_FOREVER)) {
-		memset(tlv_container, 0, sizeof(*tlv_container));
-		return tlv_container;
-	} else {
-		LOG_ERR("Couldn't allocate memory for the message");
+	if (ret) {
+		LOG_ERR("Couldn't allocate memory for the TLV");
 		return NULL;
 	}
+
+	memset(tlv_container, 0, sizeof(*tlv_container));
+	return tlv_container;
 }
 
 void ptp_tlv_free(struct ptp_tlv_container *tlv_container)

@@ -4,23 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(ptp_state_machine, CONFIG_PTP_LOG_LEVEL);
+#include <zephyr/kernel.h>
 
 #include "state_machine.h"
-
-static const char * state_str[] = {
-	[PTP_PS_INITIALIZING] = "INITIALIZING",
-	[PTP_PS_FAULTY] = "FAULTY",
-	[PTP_PS_DISABLED] = "DISABLED",
-	[PTP_PS_LISTENING] = "LISTENING",
-	[PTP_PS_PRE_MASTER] = "PRE_MASTER",
-	[PTP_PS_MASTER] = "MASTER",
-	[PTP_PS_GRAND_MASTER] = "GRAND_MASTER",
-	[PTP_PS_PASSIVE] = "PASSIVE",
-	[PTP_PS_UNCALIBRATED] = "UNCALIBRATED",
-	[PTP_PS_SLAVE] = "SLAVE",
-};
 
 enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 				      enum ptp_port_event event,
@@ -254,8 +240,6 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		break;
 	}
 
-	LOG_DBG("State change to %s", state_str[new_state]);
-
 	return new_state;
 }
 
@@ -389,8 +373,6 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 	default:
 		break;
 	}
-
-	LOG_DBG("State change to %s", state_str[new_state]);
 
 	return new_state;
 }

@@ -49,9 +49,11 @@ choice
 
 	config PTP_UDP_IPv4_PROTOCOL
 		bool "UDP with IPv4"
+		select NET_IPV4_IGMP
 
 	config PTP_UDP_IPv6_PROTOCOL
 		bool "UDP with IPv6"
+		select NET_IPV6_MLD
 
 	config PTP_IEEE_802_3_PROTOCOL
 		bool "IEEE 802.3 - Raw Ethernet packets"
@@ -186,7 +188,7 @@ choice
 endchoice
 
 config PTP_DELAY_MECHANISM
-	hex "Delay mechanism used in PTP Domain"
+	hex
 	default 0x1 if CONFIG_PTP_DELAY_MECHANISM_E2E
 	default 0x2 if CONFIG_PTP_DELAY_MECHANISM_P2P
 	default 0x3 if CONFIG_PTP_DELAY_MECHANISM_COMMON_P2P
@@ -208,28 +210,28 @@ config PTP_MSG_POLL_SIZE
 	  defines number of blocks in the memory slab.
 
 config PTP_DISABLED_PRESENT
-	bool "The DISABLED state is present"
-	default true
+	bool
+	default y
 
 config PTP_FAULTY_PRESENT
-	bool "The FAULTY state is present"
-	default true
+	bool
+	default y
 
 config PTP_LISTENING_PRESENT
-	bool "The LISTENING state is present"
-	default true
+	bool
+	default y
 
 config PTP_PRE_MASTER_PESENT
-	bool "The PRE-MASTER state is present"
-	default true
+	bool
+	default y
 
 config PTP_UNCALIBRATED_PRESENT
-	bool "The UNCALIBRATED state is present"
-	default true
+	bool
+	default y
 
 config PTP_FOREIGN_MASTER_FEATURE
 	bool
-	default true
+	default y
 
 config PTP_PRIORITY1
 	int "Value used in the Best Master Clock Algorithm (BMCA)"
@@ -299,7 +301,7 @@ config PTP_STATISTICS
 	  Collected measurements can be accessed through shell.
 
 choice PTP_DSCP_PRIORITY
-	prompt ""
+	prompt "Priority of PTP packets classification"
 	default PTP_DSCP_NONE_PRIORITY
 
 	config PTP_DSCP_HIGH_PRIORITY
@@ -313,7 +315,7 @@ choice PTP_DSCP_PRIORITY
 endchoice
 
 config PTP_DSCP_VALUE
-	int "Value of PTP packetc classification"
+	int
 	default 56 if PTP_DSCP_HIGH_PRIORITY
 	default 46 if PTP_DSCP_MEDIUM_PRIORITY
 	default 0 if PTP_DSCP_NONE_PRIORITY

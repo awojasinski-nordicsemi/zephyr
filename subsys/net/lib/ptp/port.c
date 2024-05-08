@@ -108,9 +108,8 @@ static void port_disable(struct ptp_port *port)
 static int port_msg_send(struct ptp_port *port, struct ptp_msg *msg)
 {
 	ptp_msg_pre_send(port->clock, msg);
-	ptp_transport_send(port, msg);
 
-	return 0;
+	return ptp_transport_send(port, msg);
 }
 
 static void port_timer_init(struct k_timer *timer, k_timer_expiry_t timeout_fn, void *user_data)
@@ -148,7 +147,6 @@ static void port_timer_set_timeout_random(struct k_timer *timer,
 
 static int port_enable(struct ptp_port *port)
 {
-	LOG_DBG("Enabling port");
 	while (!net_if_is_up(port->iface)) {
 		k_sleep(K_SECONDS(1));
 	}
@@ -195,11 +193,14 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 	struct ptp_port *port = ptp_clock_get_port_from_iface(pkt->iface);
 	struct ptp_msg *msg = ptp_msg_get_from_pkt(pkt);
 
-	if (!port) {
+	if (!port || !msg) {
 		return;
 	}
 
-	if (ptp_msg_type_get(msg) == PTP_MSG_SYNC) {
+	msg->header.src_port_id.port_number = ntohs(msg->header.src_port_id.port_number);
+
+	if (ptp_port_id_eq(&port->port_ds.id, &msg->header.src_port_id) &&
+	    ptp_msg_type_get(msg) == PTP_MSG_SYNC) {
 
 		struct ptp_clock *clock = port->clock;
 		struct ptp_msg *resp = ptp_msg_alloc();
@@ -214,7 +215,7 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 		resp->header.domain_number     = clock->default_ds.domain;
 		resp->header.flags[1]	       = clock->time_prop_ds.flags;
 		resp->header.src_port_id       = port->port_ds.id;
-		resp->header.sequence_id       = port->seq_id.sync;
+		resp->header.sequence_id       = port->seq_id.sync++;
 		resp->header.log_msg_interval  = port->port_ds.log_sync_interval;
 
 		resp->follow_up.precise_origin_timestamp.seconds_high = pkt->timestamp._sec.high;
@@ -223,6 +224,8 @@ static void port_sync_timestamp_cb(struct net_pkt *pkt)
 
 		port_msg_send(port, resp);
 		ptp_msg_unref(resp);
+
+		LOG_DBG("Port %d sends Follow_Up message", port->port_ds.id.port_number);
 
 		port->sync_ts_cb_registered = false;
 		net_if_unregister_timestamp_cb(&port->sync_ts_cb);
@@ -424,6 +427,7 @@ static void port_follow_up_msg_process(struct ptp_port *port, struct ptp_msg *ms
 
 static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
+	int ret;
 	enum ptp_port_state state = ptp_port_state(port);
 	struct ptp_msg *resp;
 
@@ -459,11 +463,15 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 		resp->header.log_msg_interval = DEFAULT_LOG_MSG_INTERVAL;
 	}
 
-	LOG_DBG("Port %d responds to Delay_Req message", port->port_ds.id.port_number);
-	port_msg_send(port, resp);
+	ret = port_msg_send(port, resp);
 	ptp_msg_unref(resp);
 
-	return 0;
+	if (ret < 0) {
+		return -EFAULT;
+	} else {
+		LOG_DBG("Port %d responds to Delay_Req message", port->port_ds.id.port_number);
+		return 0;
+	}
 }
 
 static void port_delay_resp_msg_process(struct ptp_port *port, struct ptp_msg *msg)
@@ -542,6 +550,7 @@ static int port_announce_msg_transmit(struct ptp_port *port)
 {
 	struct ptp_clock *clock = port->clock;
 	struct ptp_msg *msg = ptp_msg_alloc();
+	int ret;
 
 	if (!msg) {
 		return -ENOMEM;
@@ -564,17 +573,22 @@ static int port_announce_msg_transmit(struct ptp_port *port)
 	msg->announce.steps_rm		 = clock->current_ds.steps_rm;
 	msg->announce.time_src		 = clock->time_prop_ds.time_src;
 
-	port_msg_send(port, msg);
+	ret = port_msg_send(port, msg);
 	ptp_msg_unref(msg);
-	LOG_DBG("Port %d sends Announce message", port->port_ds.id.port_number);
 
-	return 0;
+	if (ret < 0) {
+		return -EFAULT;
+	} else {
+		LOG_DBG("Port %d sends Announce message", port->port_ds.id.port_number);
+		return 0;
+	}
 }
 
 static int port_sync_msg_transmit(struct ptp_port *port)
 {
 	struct ptp_clock *clock = port->clock;
 	struct ptp_msg *msg = ptp_msg_alloc();
+	int ret;
 
 	if (!msg) {
 		return -ENOMEM;
@@ -587,7 +601,7 @@ static int port_sync_msg_transmit(struct ptp_port *port)
 	msg->header.flags[0]	      = PTP_MSG_TWO_STEP_FLAG;
 	msg->header.flags[1]	      = clock->time_prop_ds.flags;
 	msg->header.src_port_id	      = port->port_ds.id;
-	msg->header.sequence_id	      = port->seq_id.sync++;
+	msg->header.sequence_id	      = port->seq_id.sync;
 	msg->header.log_msg_interval  = port->port_ds.log_sync_interval;
 
 	net_if_register_timestamp_cb(&port->sync_ts_cb,
@@ -595,11 +609,15 @@ static int port_sync_msg_transmit(struct ptp_port *port)
 				     port->iface,
 				     port_sync_timestamp_cb);
 
-	port_msg_send(port, msg);
+	ret = port_msg_send(port, msg);
 	ptp_msg_unref(msg);
-	LOG_DBG("Port %d sends Sync message", port->port_ds.id.port_number);
 
-	return 0;
+	if (ret < 0) {
+		return -EFAULT;
+	} else {
+		LOG_DBG("Port %d sends Sync message", port->port_ds.id.port_number);
+		return 0;
+	}
 }
 
 static struct ptp_msg *port_management_resp_prepare(struct ptp_port *port,
@@ -758,15 +776,20 @@ static int port_management_resp(struct ptp_port *port,
 		return ret;
 	}
 
-	port_msg_send(port, resp);
+	ret = port_msg_send(port, resp);
 	ptp_msg_unref(resp);
-	LOG_DBG("Port %d sends Menagement message response", port->port_ds.id.port_number);
 
-	return 0;
+	if (ret) {
+		return -EFAULT;
+	} else {
+		LOG_DBG("Port %d sends Menagement message response", port->port_ds.id.port_number);
+		return 0;
+	}
 }
 
 static int port_management_error(struct ptp_port *port, struct ptp_msg *msg, enum ptp_mgmt_err err)
 {
+	int ret;
 	struct ptp_tlv *tlv;
 	struct ptp_tlv_mgmt_err *mgmt_err;
 	struct ptp_tlv_mgmt *mgmt = (struct ptp_tlv_mgmt *)msg->management.suffix;
@@ -791,11 +814,15 @@ static int port_management_error(struct ptp_port *port, struct ptp_msg *msg, enu
 	mgmt_err->err_id = err;
 	mgmt_err->id = mgmt->id;
 
-	port_msg_send(port, resp);
+	ret = port_msg_send(port, resp);
 	ptp_msg_unref(resp);
-	LOG_DBG("Port %d sends Menagement Error message", port->port_ds.id.port_number);
 
-	return 0;
+	if (ret) {
+		return -EFAULT;
+	} else {
+		LOG_DBG("Port %d sends Menagement Error message", port->port_ds.id.port_number);
+		return 0;
+	}
 }
 
 static void port_management_forward(struct ptp_port *ingress, struct ptp_msg *msg)
@@ -1104,7 +1131,7 @@ static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_t
 		port_timer_set_timeout(&port->sync_tx_timer, 1, port->port_ds.log_sync_interval);
 		port->sync_tx_t_expired = false;
 
-		return port_sync_msg_transmit(port) ? PTP_EVT_NONE : PTP_EVT_FAULT_DETECTED;
+		return port_sync_msg_transmit(port) == 0 ? PTP_EVT_NONE : PTP_EVT_FAULT_DETECTED;
 	}
 
 	if (timer == &port->qualification_timer && port->qualification_t_expired) {
@@ -1121,7 +1148,8 @@ static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_t
 				       port->port_ds.log_announce_interval);
 		port->master_announce_t_expired = false;
 
-		return port_announce_msg_transmit(port) ? PTP_EVT_NONE : PTP_EVT_FAULT_DETECTED;
+		return port_announce_msg_transmit(port) == 0 ? PTP_EVT_NONE :
+							       PTP_EVT_FAULT_DETECTED;
 	}
 
 	return event;
@@ -1147,8 +1175,8 @@ void ptp_port_init(struct net_if *iface, void *user_data)
 	port->best = NULL;
 	port->socket = -1;
 
-	port->state_machine = clock->default_ds.slave_only ?
-		ptp_so_state_machine : ptp_state_machine;
+	port->state_machine = clock->default_ds.slave_only ? ptp_so_state_machine :
+							     ptp_state_machine;
 
 	port_ds_init(port);
 	sys_slist_init(&port->foreign_list);
