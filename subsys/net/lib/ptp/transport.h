@@ -21,6 +21,9 @@
 extern "C" {
 #endif
 
+#define PTP_SOCKET_EVENT_PORT (319)
+#define PTP_SOCKET_GENERAL_PORT (320)
+
 /**
  * @brief Types of PTP networking protocols.
  */

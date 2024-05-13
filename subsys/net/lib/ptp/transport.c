@@ -12,8 +12,6 @@ LOG_MODULE_REGISTER(ptp_transport, CONFIG_PTP_LOG_LEVEL);
 #include "transport.h"
 
 #define INTERFACE_NAME_LEN (32)
-#define SOCKET_EVENT_PORT (319)
-#define SOCKET_GENERAL_PORT (320)
 
 #define IP_MULTICAST_IP "224.0.1.129"
 #define IP6_MULTICAST_IP "FF0E:0:0:0:0:0:0:181"
@@ -29,6 +27,8 @@ static struct in6_addr mcast_addr;
 static int transport_socket_open(struct net_if *iface, struct sockaddr *addr)
 {
 	static const int feature_on = 1;
+	static const uint8_t priority = NET_PRIORITY_CA;
+	static const uint8_t ts_mask = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_RX_HARDWARE;
 	struct ifreq ifreq = { 0 };
 	int socket = zsock_socket(addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -42,7 +42,7 @@ static int transport_socket_open(struct net_if *iface, struct sockaddr *addr)
 	}
 
 	if (zsock_setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &feature_on, sizeof(feature_on))) {
-		LOG_ERR("Failed to set REUSEADDR socket option");
+		LOG_ERR("Failed to set SO_REUSEADDR");
 		goto error;
 	}
 
@@ -62,6 +62,16 @@ static int transport_socket_open(struct net_if *iface, struct sockaddr *addr)
 		goto error;
 	}
 
+	if (zsock_setsockopt(socket, SOL_SOCKET, SO_TIMESTAMPING, &ts_mask, sizeof(ts_mask))) {
+		LOG_ERR("Failed to set SO_TIMESTAMPING");
+		goto error;
+	}
+
+	if (zsock_setsockopt(socket, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority))) {
+		LOG_ERR("Failed to set SO_PRIORITY");
+		goto error;
+	}
+
 	return 0;
 error:
 	zsock_close(socket);
@@ -77,12 +87,12 @@ static int transport_send(int socket, void *buf, int lenght, struct sockaddr *ad
 	if (!addr) {
 		if (IS_ENABLED(CONFIG_PTP_UDP_IPv4_PROTOCOL)) {
 			m_addr.sa_family = AF_INET;
-			net_sin(&m_addr)->sin_port = htons(SOCKET_EVENT_PORT);
+			net_sin(&m_addr)->sin_port = htons(PTP_SOCKET_EVENT_PORT);
 			net_sin(&m_addr)->sin_addr.s_addr = mcast_addr.s_addr;
 
 		} else if (IS_ENABLED(CONFIG_PTP_UDP_IPv6_PROTOCOL)) {
 			m_addr.sa_family= AF_INET6;
-			net_sin6(&m_addr)->sin6_port = htons(SOCKET_EVENT_PORT);
+			net_sin6(&m_addr)->sin6_port = htons(PTP_SOCKET_EVENT_PORT);
 			memcpy(&net_sin6(&m_addr)->sin6_addr,
 			       &mcast_addr,
 			       sizeof(struct in6_addr));
@@ -212,7 +222,7 @@ int ptp_transport_open(struct ptp_port *port)
 		return -1;
 	}
 
-	int socket = transport_udp_open(port->iface, SOCKET_EVENT_PORT);
+	int socket = transport_udp_open(port->iface, PTP_SOCKET_EVENT_PORT);
 
 	if (socket == -1) {
 		return -1;
@@ -279,10 +289,6 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg)
 
 	for (cm = CMSG_FIRSTHDR(&msghdr); cm != NULL; cm = CMSG_NXTHDR(&msghdr, cm)) {
 		if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SO_TIMESTAMPING) {
-
-		}
-
-		if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SO_TIMESTAMPNS) {
 
 		}
 	}

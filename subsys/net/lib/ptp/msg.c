@@ -18,6 +18,7 @@ LOG_MODULE_REGISTER(ptp_msg, CONFIG_PTP_LOG_LEVEL);
 #include "msg.h"
 #include "port.h"
 #include "tlv.h"
+#include "transport.h"
 
 #if CONFIG_PTP_UDP_IPv4_PROTOCOL
 #define HDR_LEN (NET_IPV4H_LEN + NET_UDPH_LEN)
@@ -277,15 +278,23 @@ struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt)
 	struct net_udp_hdr *hdr = net_udp_get_hdr(pkt, NULL);
 	int payload = ntohs(hdr->len) - NET_UDPH_LEN;
 	struct ptp_msg *msg;
+	int port;
 
 	if (!hdr) {
-		LOG_ERR("Couldn't retrive PTP message from net packet");
+		LOG_ERR("Couldn't retrive UDP header from the net packet");
+		return NULL;
+	}
+
+	port = ntohs(hdr->dst_port);
+
+	if (port != PTP_SOCKET_EVENT_PORT && port != PTP_SOCKET_GENERAL_PORT) {
+		LOG_ERR("Couldn't retrive PTP message from the net packet");
 		return NULL;
 	}
 
 	msg = (struct ptp_msg*)((uintptr_t)hdr + NET_UDPH_LEN);
 
-	if (msg->header.version == PTP_VERSION && payload == ntohs(msg->header.msg_length)) {
+	if (payload == ntohs(msg->header.msg_length)) {
 		return msg;
 	}
 
