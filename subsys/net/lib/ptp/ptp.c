@@ -20,6 +20,7 @@ LOG_MODULE_REGISTER(ptp, CONFIG_PTP_LOG_LEVEL);
 #include "bmca.h"
 #include "clock.h"
 #include "port.h"
+#include "transport.h"
 
 #define NET_MGMT_EVT_MASK (NET_EVENT_L4_CONNECTED | \
 			   NET_EVENT_L4_DISCONNECTED)
@@ -87,9 +88,9 @@ static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 }
 
 #if CONFIG_NET_CONNECTION_MANAGER
-static void event_handler(struct net_mgmt_event_callback *cb,
-			  uint32_t mgmt_event,
-			  struct net_if *iface)
+void event_handler(struct net_mgmt_event_callback *cb,
+		   uint32_t mgmt_event,
+		   struct net_if *iface)
 {
 	switch (mgmt_event) {
 	case NET_EVENT_L4_CONNECTED:
@@ -116,16 +117,8 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	// TODO take semaphore and wait for interface to be up
-	k_sem_take(&ptp_sem, K_FOREVER);
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		ptp_port_event_handle(port, PTP_EVT_INITIALIZE, false);
-	}
-
-	k_yield();
-
 	while (1) {
+		k_sem_take(&ptp_sem, K_FOREVER);
 
 		ptp_clock_check_pollfd(clock);
 		zsock_poll(clock->pollfd, clock->default_ds.n_ports, 0);
@@ -133,22 +126,36 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 		fd = clock->pollfd;
 
 		SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-			struct k_timer *timers[] = {
-				&port->announce_timer,
-				&port->master_announce_timer,
-				&port->delay_timer,
-				&port->sync_rx_timer,
-				&port->sync_tx_timer,
-				&port->qualification_timer,
-				NULL, // used for socket
-			};
 
-			for (int i = 0; i < sizeof(timers)/sizeof(timers[0]); i++) {
-				if (timers[i] == NULL &&
-				    !(fd->revents & (ZSOCK_POLLIN | ZSOCK_POLLPRI))) {
+			//ptp_port_if_link_monitor(port);
+
+			if (atomic_get(&port->timeouts) != 0) {
+				struct k_timer *timers[] = {
+					&port->timers.announce,
+					&port->timers.delay,
+					&port->timers.sync,
+					&port->timers.qualification
+				};
+
+				for (int i = 0; i < ARRAY_SIZE(timers); i++) {
+					event = ptp_port_event_gen(port, timers[i], -1);
+
+					if (event == PTP_EVT_STATE_DECISION ||
+					    event == PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES) {
+						clock->state_decision_event = true;
+					}
+
+					ptp_port_event_handle(port, event, false);
+				}
+			}
+
+			for (int i = 0; i < PTP_SOCKET_CNT; i++) {
+				if (!(fd->revents & (ZSOCK_POLLIN | ZSOCK_POLLPRI))) {
+					fd++;
 					continue;
 				}
-				event = ptp_port_event_gen(port, timers[i]);
+
+				event = ptp_port_event_gen(port, NULL, i);
 
 				if (event == PTP_EVT_STATE_DECISION ||
 				    event == PTP_EVT_ANNOUNCE_RECEIPT_TIMEOUT_EXPIRES) {
@@ -156,9 +163,8 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 				}
 
 				ptp_port_event_handle(port, event, false);
+				fd++;
 			}
-
-			fd++;
 		}
 
 		if (clock->state_decision_event) {
@@ -173,6 +179,7 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 static int ptp_init(void)
 {
 	k_tid_t tid;
+	struct ptp_port *port;
 	struct ptp_clock *clock = ptp_clock_init();
 
 	if (!clock) {
@@ -189,6 +196,10 @@ static int ptp_init(void)
 	}
 
 	net_if_foreach(ptp_port_init, (void *)clock);
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
+		ptp_port_event_handle(port, PTP_EVT_INITIALIZE, false);
+	}
 
 	tid = k_thread_create(&ptp_thread_data, ptp_stack, K_KERNEL_STACK_SIZEOF(ptp_stack),
 			      ptp_thread, clock, NULL, NULL, K_PRIO_COOP(5), 0, K_NO_WAIT);

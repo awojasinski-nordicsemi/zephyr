@@ -33,19 +33,15 @@ struct ptp_port {
 	struct ptp_clock		*clock;
 	struct ptp_port_ds		port_ds;
 	struct net_if			*iface;
-	int				socket;
-	struct k_timer			announce_timer;
-	struct k_timer			master_announce_timer;
-	struct k_timer			delay_timer;
-	struct k_timer			sync_rx_timer;
-	struct k_timer			sync_tx_timer;
-	struct k_timer			qualification_timer;
-	bool				announce_t_expired;
-	bool				master_announce_t_expired;
-	bool				delay_t_expired;
-	bool				sync_rx_t_expired;
-	bool				sync_tx_t_expired;
-	bool				qualification_t_expired;
+	uint8_t				link_status;
+	int				socket[2];
+	struct {
+		struct k_timer		announce;
+		struct k_timer		delay;
+		struct k_timer		sync;
+		struct k_timer		qualification;
+	} timers;
+	atomic_t			timeouts;
 	struct {
 		uint16_t		announce;
 		uint16_t		delay;
@@ -60,8 +56,6 @@ struct ptp_port {
 	struct ptp_msg			*last_sync_fup;
 	struct net_if_timestamp_cb 	sync_ts_cb;
 	struct net_if_timestamp_cb 	pdelay_resp_ts_cb;
-	bool				sync_ts_cb_registered;
-	bool				pdelay_resp_ts_cb_registered;
 };
 
 /**
@@ -122,16 +116,24 @@ int ptp_port_id_cmp(const struct ptp_port_id *p1, const struct ptp_port_id *p2);
 struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port);
 
 /**
+ * @brief Function handling PTP Port's interface status.
+ *
+ * @param[in] port Pointer to the PTP Port sturcture.
+*/
+void ptp_port_if_link_monitor(struct ptp_port *port);
+
+/**
  * @brief Function generating PTP Port events based on PTP Port activity.
  * When pointer to a timer is passed function doesn't chceck if any message has been
  * recived on a PTP Port's socket.
  *
  * @param[in] port  Pointer to the PTP Port structure.
  * @param[in] timer Pointer to the PTP Port's timer to be checked.
+ * @param[in] idx   Index of the PTP Port's socket to be checked.
  *
  * @return PTP Port event.
  */
-enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *timer);
+enum ptp_port_event ptp_port_event_gen(struct ptp_port *port, struct k_timer *timer, int idx);
 
 /**
  * @brief Function handling PTP Port event.
