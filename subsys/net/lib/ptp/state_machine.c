@@ -19,11 +19,9 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		return PTP_PS_INITIALIZING;
 	}
 
-	switch (state)
-	{
+	switch (state) {
 	case PTP_PS_INITIALIZING:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_FAULT_DETECTED:
 			new_state = IS_ENABLED(CONFIG_PTP_FAULTY_PRESENT) ?
 					PTP_PS_FAULTY : new_state;
@@ -35,10 +33,10 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		default:
 			break;
 		}
+		break;
 #if CONFIG_PTP_FAULTY_PRESENT
 	case PTP_PS_FAULTY:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -49,6 +47,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		default:
 			break;
 		}
+		break;
 #endif /* CONFIG_PTP_FAULTY_PRESENT */
 #if CONFIG_PTP_DISABLED_PRESENT
 	case PTP_PS_DISABLED:
@@ -59,8 +58,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 #endif /* CONFIG_PTP_DISQBLED_PRESENT */
 #if CONFIG_PTP_LISTENING_PRESENT
 	case PTP_PS_LISTENING:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -89,11 +87,11 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		default:
 			break;
 		}
+		break;
 #endif /* CONFIG_PTP_LISTENING_PRESENT */
 #if CONFIG_PTP_PRE_MASTER_PESENT
 	case PTP_PS_PRE_MASTER:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -118,8 +116,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		break;
 #endif /* CONFIG_PTP_PRE_MASTER_PESENT */
 	case PTP_PS_MASTER:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -140,8 +137,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		}
 		break;
 	case PTP_PS_PASSIVE:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -167,8 +163,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		break;
 #if CONFIG_PTP_UNCALIBRATED_PRESENT
 	case PTP_PS_UNCALIBRATED:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -199,8 +194,7 @@ enum ptp_port_state ptp_state_machine(enum ptp_port_state state,
 		break;
 #endif /* CONFIG_PTP_UNCALIBRATED_PRESENT */
 	case PTP_PS_SLAVE:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -254,11 +248,9 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 		return PTP_PS_INITIALIZING;
 	}
 
-	switch (state)
-	{
+	switch (state) {
 	case PTP_PS_INITIALIZING:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_FAULT_DETECTED:
 			new_state = IS_ENABLED(CONFIG_PTP_FAULTY_PRESENT) ?
 					PTP_PS_FAULTY : new_state;
@@ -270,10 +262,10 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 		default:
 			break;
 		}
+		break;
 #if CONFIG_PTP_FAULTY_PRESENT
 	case PTP_PS_FAULTY:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -284,6 +276,7 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 		default:
 			break;
 		}
+		break;
 #endif
 #if CONFIG_PTP_DISABLED_PRESENT
 	case PTP_PS_DISABLED:
@@ -294,8 +287,7 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 #endif
 #if CONFIG_PTP_LISTENING_PRESENT
 	case PTP_PS_LISTENING:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -311,11 +303,11 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 		default:
 			break;
 		}
+		break;
 #endif
 #if CONFIG_PTP_UNCALIBRATED_PRESENT
 	case PTP_PS_UNCALIBRATED:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;
@@ -339,8 +331,7 @@ enum ptp_port_state ptp_so_state_machine(enum ptp_port_state state,
 		break;
 #endif
 	case PTP_PS_SLAVE:
-		switch (event)
-		{
+		switch (event) {
 		case PTP_EVT_DESIGNATED_DISABLED:
 			new_state = IS_ENABLED(CONFIG_PTP_DISABLED_PRESENT) ?
 					PTP_PS_DISABLED : new_state;

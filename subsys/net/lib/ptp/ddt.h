@@ -110,7 +110,7 @@ struct ptp_text {
 struct ptp_fault_record {
 	uint16_t	     length;
 	struct ptp_timestamp time;
-	uint8_t		     code; /* byte enum */
+	uint8_t		     code;
 	struct ptp_text	     name;
 	struct ptp_text	     value;
 	struct ptp_text	     desc;
@@ -145,15 +145,6 @@ struct ptp_alt_timescale {
 	uint64_t        time_of_next_jump:48;
 	struct ptp_text disp_name;
 } __packed;
-
-/**
- * @brief
- * @note 17.5.3.2 - element of ptp_acceptable_master_tab_ds
- */
-struct ptp_acceptable_master {
-	struct ptp_port_id port_id;
-	uint8_t		   alt_priority1;
-};
 
 struct ptp_port;
 

@@ -21,8 +21,17 @@
 extern "C" {
 #endif
 
-#define PTP_SOCKET_EVENT_PORT (319)
-#define PTP_SOCKET_GENERAL_PORT (320)
+#define PTP_SOCKET_PORT_EVENT (319)
+#define PTP_SOCKET_PORT_GENERAL (320)
+
+/**
+ * @brief Values used to identify PTP Port socket based on used port.
+ */
+enum ptp_socket {
+	PTP_SOCKET_EVENT,
+	PTP_SOCKET_GENERAL,
+	PTP_SOCKET_CNT
+};
 
 /**
  * @brief Types of PTP networking protocols.
@@ -38,7 +47,7 @@ enum ptp_net_protocol {
  *
  * @param[in] port Pointer to the PTP Port structure.
  *
- * @return
+ * @return 0 on success, negative otherwise.
  */
 int ptp_transport_open(struct ptp_port *port);
 
@@ -47,7 +56,7 @@ int ptp_transport_open(struct ptp_port *port);
  *
  * @param[in] port Pointer to the PTP Port structure.
  *
- * @return
+ * @return 0 on success, negative otherwise.
  */
 int ptp_transport_close(struct ptp_port *port);
 
@@ -59,10 +68,11 @@ int ptp_transport_close(struct ptp_port *port);
  *
  * @param[in] port Pointer to the PTP Port structure.
  * @param[in] msg  Pointer to the messge to be send.
+ * @param[in] idx  Index of the socket to be used to send message.
  *
- * @return
+ * @return Number of sent bytes.
  */
-int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg);
+int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg, enum ptp_socket idx);
 
 /**
  * @brief Function for sending PTP message using a specified transport. The message is sent
@@ -70,10 +80,11 @@ int ptp_transport_send(struct ptp_port *port, struct ptp_msg *msg);
  *
  * @param[in] port Pointer to the PTP Port structure.
  * @param[in] msg  Pointer to the messge to be send.
+ * @param[in] idx  Index of the socket to be used to send message.
  *
- * @return
+ * @return Number of sent bytes.
  */
-int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg);
+int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg, enum ptp_socket idx);
 
 /**
  * @brief Function for sending PTP message using a specified transport. The message is sent
@@ -83,19 +94,21 @@ int ptp_transport_sendto(struct ptp_port *port, struct ptp_msg *msg);
  *
  * @param[in] port Pointer to the PTP Port structure.
  * @param[in] msg  Pointer to the messge to be send.
+ * @param[in] idx  Index of the socket to be used to send message.
  *
- * @return
+ * @return Number of sent bytes.
  */
-int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg);
+int ptp_transport_send_peer(struct ptp_port *port, struct ptp_msg *msg, enum ptp_socket idx);
 
 /**
  * @brief Function for receiving a PTP message using a specified transport.
  *
  * @param[in] port Pointer to the PTP Port structure.
+ * @param[in] idx  Index of the socket to be used to send message.
  *
  * @return
  */
-int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg);
+int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg, enum ptp_socket idx);
 
 /**
  * @brief Function for getting transport's protocol address.

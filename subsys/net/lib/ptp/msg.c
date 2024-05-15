@@ -20,22 +20,9 @@ LOG_MODULE_REGISTER(ptp_msg, CONFIG_PTP_LOG_LEVEL);
 #include "tlv.h"
 #include "transport.h"
 
-#if CONFIG_PTP_UDP_IPv4_PROTOCOL
-#define HDR_LEN (NET_IPV4H_LEN + NET_UDPH_LEN)
-#elif CONFIG_PTP_UDP_IPv6_PROTOCOL
-#define HDR_LEN (NET_IPV6H_LEN + NET_UDPH_LEN)
-#else
-#define HDR_LEN 14
-#endif
-
-struct msg_container {
-	uint8_t reserved[HDR_LEN];
-	struct ptp_msg msg __aligned(8);
-};
-
 static struct k_mem_slab msg_slab;
 
-K_MEM_SLAB_DEFINE_STATIC(msg_slab, sizeof(struct msg_container), CONFIG_PTP_MSG_POLL_SIZE, 8);
+K_MEM_SLAB_DEFINE_STATIC(msg_slab, sizeof(struct ptp_msg), CONFIG_PTP_MSG_POLL_SIZE, 8);
 
 static const char *msg_type_str(struct ptp_msg *msg)
 {
@@ -224,19 +211,19 @@ static void msg_port_id_pre_send(struct ptp_port_id *port_id)
 
 struct ptp_msg *ptp_msg_alloc(void)
 {
-	struct msg_container *container = NULL;
-	int ret = k_mem_slab_alloc(&msg_slab, (void **)&container, K_FOREVER);
+	struct ptp_msg *msg = NULL;
+	int ret = k_mem_slab_alloc(&msg_slab, (void **)&msg, K_FOREVER);
 
 	if (ret) {
 		LOG_ERR("Couldn't allocate memory for the message");
 		return NULL;
 	}
 
-	memset(container, 0, sizeof(*container));
-	sys_slist_init(&container->msg.tlvs);
-	container->msg.ref++;
+	memset(msg, 0, sizeof(*msg));
+	sys_slist_init(&msg->tlvs);
+	msg->ref++;
 
-	return &container->msg;
+	return msg;
 }
 
 void ptp_msg_unref(struct ptp_msg *msg)
@@ -247,13 +234,12 @@ void ptp_msg_unref(struct ptp_msg *msg)
 	}
 
 	struct ptp_tlv_container *tlv_container;
-	struct msg_container *container = CONTAINER_OF(msg, struct msg_container, msg);
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&msg->tlvs, tlv_container, node) {
 		ptp_tlv_free(tlv_container);
 	}
 
-	k_mem_slab_free(&msg_slab, (void *)container);
+	k_mem_slab_free(&msg_slab, (void *)msg);
 }
 
 bool ptp_msg_current_parent_check(const struct ptp_port *port, const struct ptp_msg *msg)
@@ -287,7 +273,7 @@ struct ptp_msg *ptp_msg_get_from_pkt(struct net_pkt *pkt)
 
 	port = ntohs(hdr->dst_port);
 
-	if (port != PTP_SOCKET_EVENT_PORT && port != PTP_SOCKET_GENERAL_PORT) {
+	if (port != PTP_SOCKET_PORT_EVENT && port != PTP_SOCKET_PORT_GENERAL) {
 		LOG_ERR("Couldn't retrive PTP message from the net packet");
 		return NULL;
 	}

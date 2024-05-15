@@ -3,6 +3,7 @@ menuconfig PTP
 	select EXPERIMENTAL
 	select NET_SOCKETS
 	select NET_CONTEXT_PRIORITY
+	select NET_CONTEXT_RECV_PKTINFO
 	select NET_L2_PTP
 	depends on NET_L2_ETHERNET
 	help

@@ -1257,7 +1257,7 @@ int zsock_wait_data(struct net_context *ctx, k_timeout_t *timeout)
 	return 0;
 }
 
-
+// TODO check if timestamp is copied
 static int insert_pktinfo(struct msghdr *msg, int level, int type,
 			  void *pktinfo, size_t pktinfo_len)
 {
@@ -1281,6 +1281,7 @@ static int insert_pktinfo(struct msghdr *msg, int level, int type,
 	return 0;
 }
 
+// TODO retreive timestamp from net_pkt to msghdr
 static int add_pktinfo(struct net_context *ctx,
 			struct net_pkt *pkt,
 			struct msghdr *msg)

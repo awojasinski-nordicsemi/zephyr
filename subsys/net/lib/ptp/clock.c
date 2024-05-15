@@ -19,6 +19,7 @@ LOG_MODULE_REGISTER(ptp_clock, CONFIG_PTP_LOG_LEVEL);
 #include "clock.h"
 #include "port.h"
 #include "tlv.h"
+#include "transport.h"
 
 static struct ptp_clock domain_clock = { 0 };
 
@@ -60,10 +61,13 @@ static const char *clock_id_str(ptp_clk_id *clock_id)
 
 static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
 {
-	dest->fd = port->socket;
-	dest->events = ZSOCK_POLLIN | ZSOCK_POLLPRI;
+	for (int i = 0; i < PTP_SOCKET_CNT; i++) {
+		dest->fd = port->socket[i];
+		dest->events = ZSOCK_POLLIN | ZSOCK_POLLPRI;
+		dest++;
+	}
 
-	return 1;
+	return PTP_SOCKET_CNT;
 }
 
 static int clock_parent_ds_cmp(struct ptp_parent_ds *a, struct ptp_parent_ds *b)
@@ -218,7 +222,6 @@ struct ptp_clock *ptp_clock_init(void)
 		return NULL;
 	}
 
-	sys_slist_init(&clock->subs_list);
 	sys_slist_init(&clock->ports_list);
 	LOG_DBG("PTP Clock %s initialized", clock_id_str(&dds->clk_id));
 	return clock;

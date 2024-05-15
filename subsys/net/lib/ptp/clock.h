@@ -41,9 +41,8 @@ struct ptp_clock {
 	struct ptp_dataset		dataset;
 	bool				state_decision_event;
 	struct ptp_foreign_master_clock *best;
-	sys_slist_t			subs_list;
 	sys_slist_t			ports_list;
-	struct zsock_pollfd		pollfd[CONFIG_PTP_NUM_PORTS];
+	struct zsock_pollfd		pollfd[2 * CONFIG_PTP_NUM_PORTS];
 	bool				pollfd_valid;
 	uint8_t				time_src;
 };
