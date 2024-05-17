@@ -70,12 +70,6 @@ static int clock_update_pollfd(struct zsock_pollfd *dest, struct ptp_port *port)
 	return PTP_SOCKET_CNT;
 }
 
-static int clock_parent_ds_cmp(struct ptp_parent_ds *a, struct ptp_parent_ds *b)
-{
-	//TODO implement function
-	return 0;
-}
-
 void ptp_clock_check_pollfd(struct ptp_clock *clock)
 {
 	struct ptp_port *port;
@@ -113,8 +107,6 @@ struct ptp_port *ptp_clock_get_port_from_iface(struct net_if *iface)
 
 void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 {
-	struct ptp_parent_ds old_parent = clock->parent_ds;
-
 	memset(&clock->current_ds, 0, sizeof(clock->current_ds));
 
 	memcpy(&clock->parent_ds.port_id.clk_id,
@@ -131,15 +123,11 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 	clock->time_prop_ds.current_utc_offset = 0; //TODO IEEE 1588-2019 9.4
 	clock->time_prop_ds.time_src = clock->time_src;
 	clock->time_prop_ds.flags = 0; //TODO IEEE 1588-2019 9.4
-
-	if (clock_parent_ds_cmp(&old_parent, &clock->parent_ds)) {
-		//TODO send notification to subscribers.
-	}
 }
 
 void ptp_clock_update_slave(struct ptp_clock *clock)
 {
-	struct ptp_msg *best_msg = (struct ptp_msg *)(&clock->best->messages);
+	struct ptp_msg *best_msg = (struct ptp_msg *)k_fifo_peek_tail(&clock->best->messages);
 
 	clock->current_ds.steps_rm = 1 + clock->best->dataset.steps_rm;
 

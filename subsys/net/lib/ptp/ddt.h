@@ -31,21 +31,13 @@ typedef int64_t ptp_timeinterval;
  * @brief Structure for storing PTP timestamp used in PTP Protocol.
  * @note 5.3.3 - timestamp with respect to epoch
  */
-struct ptp_protocol_timestamp {
+struct ptp_timestamp {
 	/* Seconds encoded on 48 bits. */
 	uint16_t seconds_high;
 	uint32_t seconds_low;
 	/* Nanoseconds. */
 	uint32_t nanoseconds;
 } __packed;
-
-/**
- * @brief PTP timestamp format used internally by the host.
-*/
-struct ptp_timestamp {
-	uint64_t seconds:48;
-	uint32_t nanoseconds;
-};
 
 /**
  * @brief PTP Clock Identity.
@@ -108,12 +100,12 @@ struct ptp_text {
  * @note 5.3.10 - fault log datatype
  */
 struct ptp_fault_record {
-	uint16_t	     length;
-	struct ptp_timestamp time;
-	uint8_t		     code;
-	struct ptp_text	     name;
-	struct ptp_text	     value;
-	struct ptp_text	     desc;
+	uint16_t	    length;
+	struct net_ptp_time time;
+	uint8_t		    code;
+	struct ptp_text	    name;
+	struct ptp_text	    value;
+	struct ptp_text	    desc;
 } __packed;
 
 /**

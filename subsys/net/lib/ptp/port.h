@@ -54,6 +54,7 @@ struct ptp_port {
 	struct ptp_foreign_master_clock *best;
 	sys_slist_t			foreign_list;
 	struct ptp_msg			*last_sync_fup;
+	struct k_fifo			delay_req;
 	struct net_if_timestamp_cb 	sync_ts_cb;
 	struct net_if_timestamp_cb 	pdelay_resp_ts_cb;
 };
@@ -181,6 +182,15 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg);
  * @return Non-zero if the announce message is different than the last.
  */
 int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg);
+
+/**
+ * @brief Compute PTP Port's best Foreign Master Clock.
+ *
+ * @param[in] port Pointer to the PTP Port.
+ *
+ * @return Pointer to the PTP Port's best Foreign Master.
+ */
+struct ptp_foreign_master_clock *ptp_port_compute_best_foreign(struct ptp_port *port);
 
 #ifdef __cplusplus
 }

@@ -48,7 +48,7 @@ struct ptp_clock {
 };
 
 /**
- * @brief
+ * @brief Foreign Master record.
  */
 struct ptp_foreign_master_clock {
 	sys_snode_t		node; /* object list */

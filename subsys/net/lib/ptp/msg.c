@@ -160,16 +160,14 @@ static void msg_tlv_pre_send(struct ptp_msg *msg)
 	}
 }
 
-static void msg_timestamp_post_recv(struct ptp_msg *msg, struct ptp_protocol_timestamp *ts)
+static void msg_timestamp_post_recv(struct ptp_msg *msg, struct ptp_timestamp *ts)
 {
-	uint16_t high = ntohs(ts->seconds_high);
-	uint32_t low = ntohl(ts->seconds_low);
-
-	msg->timestamp.protocol.seconds = ((uint64_t)high << 32 | (uint64_t)low);
-	msg->timestamp.protocol.nanoseconds = ntohl(ts->nanoseconds);
+	msg->timestamp.protocol._sec.high = ntohs(ts->seconds_high);
+	msg->timestamp.protocol._sec.low = ntohs(ts->seconds_low);
+	msg->timestamp.protocol.nanosecond = ntohl(ts->nanoseconds);
 }
 
-static void msg_timestamp_pre_send(struct ptp_protocol_timestamp *ts)
+static void msg_timestamp_pre_send(struct ptp_timestamp *ts)
 {
 	ts->seconds_high = htons(ts->seconds_high);
 	ts->seconds_low = htonl(ts->seconds_low);
@@ -300,10 +298,7 @@ void ptp_msg_pre_send(struct ptp_clock *clock, struct ptp_msg *msg)
 	case PTP_MSG_SYNC:
 		break;
 	case PTP_MSG_DELAY_REQ:
-		struct net_ptp_time ts;
-		ptp_clock_get(clock->phc, &ts);
-		msg->timestamp.host.nanoseconds = ts.nanosecond;
-		msg->timestamp.host.seconds = ts.second;
+		ptp_clock_get(clock->phc, &msg->timestamp.host);
 		break;
 	case PTP_MSG_PDELAY_REQ:
 		break;
@@ -391,10 +386,7 @@ int ptp_msg_post_recv(struct ptp_port *port, struct ptp_msg *msg, int cnt)
 		msg_port_id_post_recv(&msg->pdelay_resp_follow_up.req_port_id);
 		break;
 	case PTP_MSG_ANNOUNCE:
-		struct net_ptp_time ts;
-		ptp_clock_get(port->clock->phc, &ts);
-		msg->timestamp.host.nanoseconds = ts.nanosecond;
-		msg->timestamp.host.seconds = ts.second;
+		ptp_clock_get(port->clock->phc, &msg->timestamp.host);
 		msg_timestamp_post_recv(msg, &msg->announce.origin_timestamp);
 		msg->announce.current_utc_offset = ntohs(msg->announce.current_utc_offset);
 		msg->announce.gm_clk_quality.offset_scaled_log_variance =

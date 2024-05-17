@@ -9,11 +9,14 @@ LOG_MODULE_REGISTER(ptp_port, CONFIG_PTP_LOG_LEVEL);
 
 #include <stdbool.h>
 
+#include <zephyr/drivers/ptp_clock.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/ptp.h>
+#include <zephyr/net/ptp_time.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/random/random.h>
 
+#include "bmca.h"
 #include "clock.h"
 #include "port.h"
 #include "msg.h"
@@ -22,16 +25,27 @@ LOG_MODULE_REGISTER(ptp_port, CONFIG_PTP_LOG_LEVEL);
 
 #define DEFAULT_LOG_MSG_INTERVAL (0x7F)
 
-#define PORT_TIMER_ANNOUNCE_TO	    BIT(0)
-#define PORT_TIMER_DELAY_TO	    BIT(1)
-#define PORT_TIMER_SYNC_TO	    BIT(2)
-#define PORT_TIMER_QUALIFICATION_TO BIT(3)
+#define PORT_TIMER_ANNOUNCE_TO	    (0)
+#define PORT_TIMER_DELAY_TO	    (1)
+#define PORT_TIMER_SYNC_TO	    (2)
+#define PORT_TIMER_QUALIFICATION_TO (3)
 
 #define PORT_LINK_UP	  BIT(0)
 #define PORT_LINK_DOWN	  BIT(1)
 #define PORT_LINK_CHANGED BIT(2)
 
 static struct ptp_port ports[CONFIG_PTP_NUM_PORTS];
+static struct k_mem_slab foreign_masters_slab;
+
+#if CONFIG_PTP_FOREIGN_MASTER_FEATURE
+BUILD_ASSERT(CONFIG_PTP_FOREIGN_MASTER_RECORD_SIZE >= 5 * CONFIG_PTP_NUM_PORTS,
+	     "PTP_FOREIGN_MASTER_RECORD_SIZE is smaller than expected!");
+
+K_MEM_SLAB_DEFINE_STATIC(foreign_masters_slab,
+			 sizeof(struct ptp_foreign_master_clock),
+			 CONFIG_PTP_FOREIGN_MASTER_RECORD_SIZE,
+			 8);
+#endif
 
 static const char *port_id_str(struct ptp_port_id *port_id)
 {
@@ -105,6 +119,7 @@ static void port_disable(struct ptp_port *port)
 	net_if_unregister_timestamp_cb(&port->pdelay_resp_ts_cb);
 
 	ptp_clock_pollfd_invalidate(port->clock);
+	port->port_ds.enable = false;
 	LOG_DBG("Port %d disabled", port->port_ds.id.port_number);
 }
 
@@ -123,8 +138,8 @@ static void port_timer_init(struct k_timer *timer, k_timer_expiry_t timeout_fn, 
 
 static void port_timer_set_timeout(struct k_timer *timer, uint8_t factor, int8_t log_seconds)
 {
-	int timeout = log_seconds < 0 ? (NSEC_PER_SEC * factor) >> (log_seconds * -1) :
-					(NSEC_PER_SEC * factor) << log_seconds;
+	uint64_t timeout = log_seconds < 0 ? (NSEC_PER_SEC * factor) >> (log_seconds * -1) :
+					     (NSEC_PER_SEC * factor) << log_seconds;
 
 	k_timer_start(timer, K_NSEC(timeout), K_NO_WAIT);
 }
@@ -134,14 +149,14 @@ static void port_timer_set_timeout_random(struct k_timer *timer,
 					  int span,
 					  int log_seconds)
 {
-	int timeout, random_ns;
+	uint64_t timeout, random_ns;
 
 	if (log_seconds < 0) {
 		timeout = (NSEC_PER_SEC * min_factor) >> -log_seconds;
 		random_ns = NSEC_PER_SEC >> -log_seconds;
 	} else {
 		timeout = (NSEC_PER_SEC * min_factor) << log_seconds;
-		random_ns = NSEC_PER_SEC << log_seconds;
+		random_ns = (span * NSEC_PER_SEC) << log_seconds;
 	}
 
 	timeout = timeout + (random_ns * (sys_rand32_get() % (1 << 15) + 1) >> 15);
@@ -176,13 +191,13 @@ static void port_timer_to_handler(struct k_timer *timer)
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 		if (timer == &port->timers.announce) {
-			atomic_or(&port->timeouts, PORT_TIMER_ANNOUNCE_TO);
+			atomic_set_bit(&port->timeouts, PORT_TIMER_ANNOUNCE_TO);
 		} else if (timer == &port->timers.sync) {
-			atomic_or(&port->timeouts, PORT_TIMER_SYNC_TO);
+			atomic_set_bit(&port->timeouts, PORT_TIMER_SYNC_TO);
 		} else if (timer == &port->timers.delay) {
-			atomic_or(&port->timeouts, PORT_TIMER_DELAY_TO);
+			atomic_set_bit(&port->timeouts, PORT_TIMER_DELAY_TO);
 		} else if (timer == &port->timers.qualification) {
-			atomic_or(&port->timeouts, PORT_TIMER_QUALIFICATION_TO);
+			atomic_set_bit(&port->timeouts, PORT_TIMER_QUALIFICATION_TO);
 		}
 	}
 }
@@ -275,21 +290,24 @@ static void port_pdelay_resp_timestamp_cb(struct net_pkt *pkt)
 #endif
 
 static void port_synchronize(struct ptp_port *port,
-			     struct ptp_timestamp ingress_ts,
-			     struct ptp_timestamp origin_ts,
+			     struct net_ptp_time ingress_ts,
+			     struct net_ptp_time origin_ts,
 			     int64_t correction1,
 			     int64_t correction2)
 {
 	// TODO Implement PTP Instance adjustment IEEE 1588-2019 12.1 and 11.2
 	uint64_t t1, t2, t1c, offset;
 
-	port_timer_set_timeout(&port->timers.sync, 3, port->port_ds.log_sync_interval);
 
-	t1 = origin_ts.seconds * NSEC_PER_SEC + origin_ts.nanoseconds;
-	t2 = ingress_ts.seconds * NSEC_PER_SEC + ingress_ts.nanoseconds;
+	t1 = origin_ts.second * NSEC_PER_SEC + origin_ts.nanosecond;
+	t2 = ingress_ts.second * NSEC_PER_SEC + ingress_ts.nanosecond;
 	t1c = t1 + (correction1 >> 16) + (correction2 >> 16);
 
 	offset = t2 - t1c;
+
+	port_timer_set_timeout(&port->timers.sync,
+			       port->port_ds.announce_receipt_timeout,
+			       port->port_ds.log_sync_interval);
 }
 
 static void port_sync_fup_ooo_handle(struct ptp_port *port, struct ptp_msg *msg)
@@ -342,6 +360,10 @@ static int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 {
 	int ret = 0;
 
+	if (msg->announce.steps_rm >= port->clock->default_ds.max_steps_rm) {
+		return ret;
+	}
+
 	switch (ptp_port_state(port))
 	{
 	case PTP_PS_INITIALIZING:
@@ -365,7 +387,6 @@ static int port_announce_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 		break;
 	}
 
-	ptp_msg_unref(msg);
 	return ret;
 }
 
@@ -389,7 +410,6 @@ static void port_sync_msg_process(struct ptp_port *port, struct ptp_msg *msg)
 	msg->header.correction += port->port_ds.delay_asymmetry;
 
 	if (!(msg->header.flags[0] && PTP_MSG_TWO_STEP_FLAG)) {
-		// TODO adjust PTP Clock
 		port_synchronize(port,
 				 msg->timestamp.host,
 				 msg->timestamp.protocol,
@@ -447,11 +467,9 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 	resp->header.sequence_id       = msg->header.sequence_id;
 	resp->header.log_msg_interval  = port->port_ds.log_min_delay_req_interval;
 
-	// TODO handle timestamp properly
-	resp->delay_resp.receive_timestamp.seconds_high = (msg->timestamp.host.seconds >> 32) &
-							  UINT16_MAX;
-	resp->delay_resp.receive_timestamp.seconds_low = msg->timestamp.host.seconds & UINT32_MAX;
-	resp->delay_resp.receive_timestamp.nanoseconds = msg->timestamp.host.nanoseconds;
+	resp->delay_resp.receive_timestamp.seconds_high = msg->timestamp.host._sec.high;
+	resp->delay_resp.receive_timestamp.seconds_low = msg->timestamp.host._sec.low;
+	resp->delay_resp.receive_timestamp.nanoseconds = msg->timestamp.host.nanosecond;
 	resp->delay_resp.req_port_id = msg->header.src_port_id;
 
 	if (msg->header.flags[0] && PTP_MSG_UNICAST_FLAG) {
@@ -945,7 +963,11 @@ static int port_management_process(struct ptp_port *port,
 				   struct ptp_tlv_mgmt *tlv)
 {
 	int ret = 0;
-	 //TODO check if message applies to this port
+	uint16_t target_port = msg->management.target_port_id.port_number;
+
+	if (target_port != port->port_ds.id.port_number && target_port != 0xFFFF) {
+		return ret;
+	}
 
 	if (ptp_mgmt_action_get(msg) == PTP_MGMT_SET) {
 		ret = port_management_set(port, msg, tlv);
@@ -1078,10 +1100,15 @@ static bool port_management_msg_process(struct ptp_port *port, struct ptp_msg *m
 	return state_decision_required;
 }
 
-static void foreign_clock_cleanup(struct ptp_foreign_master_clock *foreign)
+static void foreign_clock_cleanup(const struct device *phc,
+				  struct ptp_foreign_master_clock *foreign)
 {
 	struct ptp_msg *msg;
-	int64_t time, timeout, current = k_uptime_get();
+	struct net_ptp_time ts;
+	int64_t time, timeout, current;
+
+	ptp_clock_get(phc, &ts);
+	current = ts.second * MSEC_PER_SEC + ts.nanosecond * NSEC_PER_MSEC;
 
 	while (foreign->messages_count > FOREIGN_MASTER_THRESHOLD) {
 		msg = (struct ptp_msg*)k_fifo_get(&foreign->messages, K_NO_WAIT);
@@ -1093,8 +1120,8 @@ static void foreign_clock_cleanup(struct ptp_foreign_master_clock *foreign)
 	   FOREIGN_MASTER_TIME_WINDOW (4 * announce interval) - IEEE 1588-2019 9.3.2.4.5 */
 	while (!k_fifo_is_empty(&foreign->messages)) {
 		msg = (struct ptp_msg*)k_fifo_peek_head(&foreign->messages);
-		time = msg->timestamp.host.seconds * MSEC_PER_SEC +
-		       msg->timestamp.host.nanoseconds * NSEC_PER_MSEC;
+		time = msg->timestamp.host.second * MSEC_PER_SEC +
+		       msg->timestamp.host.nanosecond * NSEC_PER_MSEC;
 
 		if (msg->header.log_msg_interval <= -31) {
 			timeout = 0;
@@ -1130,52 +1157,64 @@ static void port_clear_foreign_clock_records(struct ptp_foreign_master_clock *fo
 	}
 }
 
+static void port_free_delay_req(struct ptp_port *port)
+{
+	struct ptp_msg *msg = k_fifo_get(&port->delay_req, K_NO_WAIT);
+
+	while (msg) {
+		ptp_msg_unref(msg);
+		msg = k_fifo_get(&port->delay_req, K_NO_WAIT);
+	}
+}
+
 static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_timer *timer)
 {
 	enum ptp_port_event event = PTP_EVT_NONE;
 	enum ptp_port_state state = ptp_port_state(port);
-	uint8_t timeouts = atomic_get(&port->timeouts);
 
 	switch (state) {
 	case PTP_PS_PRE_MASTER:
 		if (timer == &port->timers.qualification &&
-		    timeouts & PORT_TIMER_QUALIFICATION_TO) {
+		    atomic_test_bit(&port->timeouts, PORT_TIMER_QUALIFICATION_TO)) {
 			LOG_DBG("Port %d Qualification timeout", port->port_ds.id.port_number);
-			atomic_xor(&port->timeouts, PORT_TIMER_QUALIFICATION_TO);
+			atomic_clear_bit(&port->timeouts, PORT_TIMER_QUALIFICATION_TO);
 
 			return PTP_EVT_QUALIFICATION_TIMEOUT_EXPIRES;
 		}
 		break;
 	case PTP_PS_GRAND_MASTER:
 	case PTP_PS_MASTER:
-		if (timer == &port->timers.sync && timeouts & PORT_TIMER_SYNC_TO) {
+		if (timer == &port->timers.sync &&
+		    atomic_test_bit(&port->timeouts, PORT_TIMER_SYNC_TO)) {
 			LOG_DBG("Port %d TX Sync timeout", port->port_ds.id.port_number);
 			port_timer_set_timeout(&port->timers.sync,
 					       1,
 					       port->port_ds.log_sync_interval);
-			atomic_xor(&port->timeouts, PORT_TIMER_SYNC_TO);
+			atomic_clear_bit(&port->timeouts, PORT_TIMER_SYNC_TO);
 
 			return port_sync_msg_transmit(port) == 0 ? PTP_EVT_NONE :
 								   PTP_EVT_FAULT_DETECTED;
 		}
 
-		if (timer == &port->timers.announce && timeouts & PORT_TIMER_ANNOUNCE_TO) {
+		if (timer == &port->timers.announce &&
+		    atomic_test_bit(&port->timeouts, PORT_TIMER_ANNOUNCE_TO)) {
 			LOG_DBG("Port %d Master Announce timeout", port->port_ds.id.port_number);
 			port_timer_set_timeout(&port->timers.announce,
 					       1,
 					       port->port_ds.log_announce_interval);
-			atomic_xor(&port->timeouts, PORT_TIMER_ANNOUNCE_TO);
+			atomic_clear_bit(&port->timeouts, PORT_TIMER_ANNOUNCE_TO);
 
 			return port_announce_msg_transmit(port) == 0 ? PTP_EVT_NONE :
 								       PTP_EVT_FAULT_DETECTED;
 		}
 		break;
 	case PTP_PS_SLAVE:
-		if (timer == &port->timers.delay && timeouts & PORT_TIMER_DELAY_TO) {
+		if (timer == &port->timers.delay &&
+		    atomic_test_bit(&port->timeouts, PORT_TIMER_DELAY_TO)) {
 			port_timer_set_timeout(&port->timers.delay,
 					       1,
 					       port->port_ds.log_announce_interval);
-			atomic_xor(&port->timeouts, PORT_TIMER_DELAY_TO);
+			atomic_clear_bit(&port->timeouts, PORT_TIMER_DELAY_TO);
 			port_delay_req_msg_transmit(port);
 		}
 		/* fall through */
@@ -1183,14 +1222,15 @@ static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_t
 	case PTP_PS_UNCALIBRATED:
 	case PTP_PS_LISTENING:
 		if ((timer == &port->timers.announce || timer == &port->timers.sync) &&
-		    (timeouts & (PORT_TIMER_ANNOUNCE_TO | PORT_TIMER_SYNC_TO))) {
-			uint8_t clear_mask = PORT_TIMER_ANNOUNCE_TO | PORT_TIMER_SYNC_TO;
+		    (atomic_test_bit(&port->timeouts, PORT_TIMER_ANNOUNCE_TO) ||
+		     atomic_test_bit(&port->timeouts, PORT_TIMER_SYNC_TO))) {
 
 			LOG_DBG("Port %d %s timeout",
 				port->port_ds.id.port_number,
 				timer == &port->timers.announce ? "Announce" : "RX Sync");
 
-			atomic_xor(&port->timeouts, clear_mask);
+			atomic_clear_bit(&port->timeouts, PORT_TIMER_ANNOUNCE_TO);
+			atomic_clear_bit(&port->timeouts, PORT_TIMER_SYNC_TO);
 
 			if (port->best) {
 				port_clear_foreign_clock_records(port->best);
@@ -1306,8 +1346,27 @@ struct ptp_dataset *ptp_port_best_foreign_ds(struct ptp_port *port)
 void ptp_port_if_link_monitor(struct ptp_port *port)
 {
 	enum ptp_port_event event = PTP_EVT_NONE;
-	enum net_if_oper_state if_state = net_if_oper_state(port->iface);
+	uint8_t iface_state = net_if_oper_state(port->iface) == NET_IF_OPER_UP ?
+			      PORT_LINK_UP : PORT_LINK_DOWN;
 
+	if (port->link_status & iface_state) {
+		port->link_status = iface_state;
+	} else {
+		port->link_status = iface_state | PORT_LINK_CHANGED;
+
+		LOG_DBG("Port %d link %s",
+			port->port_ds.id.port_number,
+			port->link_status & PORT_LINK_UP ? "up" : "down");
+	}
+
+	if (port->link_status & PORT_LINK_CHANGED) {
+		event = port->link_status & PORT_LINK_UP ?
+			PTP_EVT_FAULT_CLEARED : PTP_EVT_FAULT_DETECTED;
+	}
+
+	if (port->link_status & PORT_LINK_DOWN) {
+		port->clock->state_decision_event = true;
+	}
 
 	ptp_port_event_handle(port, event, false);
 }
@@ -1416,10 +1475,6 @@ void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, boo
 					      port->port_ds.announce_receipt_timeout,
 					      1,
 					      port->port_ds.log_announce_interval);
-		port_timer_set_timeout_random(&port->timers.delay,
-					      0,
-					      2,
-					      port->port_ds.log_min_delay_req_interval);
 		break;
 	case PTP_PS_PRE_MASTER:
 		port_timer_set_timeout(&port->timers.qualification,
@@ -1444,12 +1499,17 @@ void ptp_port_event_handle(struct ptp_port *port, enum ptp_port_event event, boo
 			ptp_msg_unref(port->last_sync_fup);
 			port->last_sync_fup = NULL;
 		}
+		port_free_delay_req(port);
 		/* fall through */
 	case PTP_PS_SLAVE:
 		port_timer_set_timeout_random(&port->timers.announce,
 					      port->port_ds.announce_receipt_timeout,
 					      1,
 					      port->port_ds.log_announce_interval);
+		port_timer_set_timeout_random(&port->timers.delay,
+					      0,
+					      2,
+					      port->port_ds.log_min_delay_req_interval);
 		break;
 	};
 }
@@ -1460,12 +1520,12 @@ int ptp_port_state_update(struct ptp_port *port, enum ptp_port_event event, bool
 							     event,
 							     master_diff);
 
-	//if (next_state == PTP_PS_FAULTY) {
-	//	/* clear fault if interface is UP */
-	//	if (net_if_is_up(port->iface)) {
-	//		next_state = port->state_machine(next_state, PTP_EVT_FAULT_CLEARED, false);
-	//	}
-	//}
+	if (next_state == PTP_PS_FAULTY) {
+		/* clear fault if interface is UP */
+		if (net_if_is_up(port->iface)) {
+			next_state = port->state_machine(next_state, PTP_EVT_FAULT_CLEARED, false);
+		}
+	}
 
 	if (next_state == PTP_PS_INITIALIZING) {
 		if (ptp_port_enabled(port)) {
@@ -1504,7 +1564,7 @@ void ptp_port_free_foreign_masters(struct ptp_port *port)
 		}
 
 		sys_slist_find_and_remove(&port->foreign_list, &foreign->node);
-		k_free(foreign);
+		k_mem_slab_free(&foreign_masters_slab, (void *)foreign);
 	}
 }
 
@@ -1514,13 +1574,8 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 	struct ptp_msg *last;
 	int diff = 0;
 
-
 	SYS_SLIST_FOR_EACH_CONTAINER(&port->foreign_list, foreign, node) {
-		struct ptp_msg *foreign_msg =
-			(struct ptp_msg *)k_fifo_peek_head(&foreign->messages);
-
-		if (foreign_msg &&
-		    ptp_port_id_eq(&msg->header.src_port_id, &foreign_msg->header.src_port_id)) {
+		if (ptp_port_id_eq(&msg->header.src_port_id, &foreign->dataset.sender)) {
 			break;
 		}
 	}
@@ -1530,7 +1585,7 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 			port->port_ds.id.port_number,
 			port_id_str(&msg->header.src_port_id));
 
-		foreign = 0;//k_malloc(sizeof(*foreign));
+		k_mem_slab_alloc(&foreign_masters_slab, (void**)&foreign, K_NO_WAIT);
 		if (!foreign) {
 			LOG_ERR("Couldn't allocate memory for new foreign master");
 			return 0;
@@ -1545,12 +1600,14 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 
 		sys_slist_append(&port->foreign_list, &foreign->node);
 
+		/* First message is not added to records. */
 		return 0;
 	}
 
-	foreign_clock_cleanup(foreign);
+	foreign_clock_cleanup(port->clock->phc, foreign);
 
 	foreign->messages_count++;
+	msg->ref++;
 	k_fifo_put(&foreign->messages, (void*)msg);
 
 	if (foreign->messages_count > 1) {
@@ -1564,14 +1621,13 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)
 {
 	struct ptp_foreign_master_clock *foreign = port->best;
-	struct ptp_msg *foreign_msg = (struct ptp_msg *)k_fifo_peek_head(&foreign->messages);
 
-	if (foreign_msg &&
-	    !ptp_port_id_eq(&msg->header.src_port_id, &foreign_msg->header.src_port_id)) {
+	if (!foreign ||
+	    !ptp_port_id_eq(&msg->header.src_port_id, &foreign->dataset.sender)) {
 		return ptp_port_add_foreign_master(port, msg);
 	}
 
-	foreign_clock_cleanup(foreign);
+	foreign_clock_cleanup(port->clock->phc, foreign);
 	k_fifo_put(&foreign->messages, (void*)msg);
 	foreign->messages_count++;
 	port_timer_set_timeout_random(&port->timers.announce,
@@ -1586,4 +1642,51 @@ int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)
 	}
 
 	return 0;
+}
+
+struct ptp_foreign_master_clock *ptp_port_compute_best_foreign(struct ptp_port *port)
+{
+	struct ptp_foreign_master_clock *foreign;
+	struct ptp_announce_msg *last;
+
+	port->best = NULL;
+
+	if (port->port_ds.master_only) {
+		return NULL;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&port->foreign_list, foreign, node) {
+		if (!foreign->messages_count) {
+			continue;
+		}
+
+		foreign_clock_cleanup(port->clock->phc, foreign);
+
+		if (foreign->messages_count < FOREIGN_MASTER_THRESHOLD) {
+			continue;
+		}
+
+		last = (struct ptp_announce_msg *)k_fifo_peek_head(&foreign->messages);
+
+		foreign->dataset.priority1 = last->gm_priority1;
+		foreign->dataset.priority2 = last->gm_priority2;
+		foreign->dataset.steps_rm = last->steps_rm;
+
+		memcpy(&foreign->dataset.clk_quality,
+		       &last->gm_clk_quality,
+		       sizeof(last->gm_clk_quality));
+		memcpy(&foreign->dataset.clk_id, &last->gm_id, sizeof(last->gm_id));
+		memcpy(&foreign->dataset.receiver, &port->port_ds.id, sizeof(port->port_ds.id));
+
+		if (!port->best) {
+			port->best = foreign;
+		} else if (ptp_bmca_ds_cmp(&foreign->dataset, &port->best->dataset)) {
+			port->best = foreign;
+		} else {
+			port_clear_foreign_clock_records(foreign);
+		}
+
+	}
+
+	return port->best;
 }

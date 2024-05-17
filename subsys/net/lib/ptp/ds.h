@@ -14,7 +14,10 @@
 #ifndef ZEPHYR_INCLUDE_PTP_DS_H_
 #define ZEPHYR_INCLUDE_PTP_DS_H_
 
+#include <zephyr/net/ptp_time.h>
+
 #include "ddt.h"
+#include "state_machine.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +39,7 @@ struct ptp_default_ds {
 	uint16_t	       sdo_id: 12;
 	bool		       slave_only;
 	/* optional */
-	struct ptp_timestamp   current_time;
+	struct net_ptp_time    current_time;
 	bool		       enable;
 	bool		       external_port_conf_en;
 	uint8_t		       max_steps_rm;
@@ -179,7 +182,7 @@ struct ptp_port_ds {
 	/* static */
 	struct ptp_port_id	 id;
 	/* dynamic */
-	uint8_t			 state;
+	enum ptp_port_state	 state;
 	int8_t			 log_min_delay_req_interval;
 	ptp_timeinterval	 mean_link_delay;
 	/* configurable */

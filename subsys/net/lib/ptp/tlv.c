@@ -239,15 +239,11 @@ static int tlv_mgmt_post_recv(struct ptp_tlv_mgmt *mgmt_tlv, uint16_t length)
 		port_ds->mean_link_delay = ntohll(port_ds->mean_link_delay);
 		break;
 	case PTP_MGMT_TIME:
-		struct ptp_protocol_timestamp t = *(struct ptp_protocol_timestamp *)mgmt_tlv->data;
-		struct ptp_timestamp time;
+		struct ptp_timestamp time = *(struct ptp_timestamp *)mgmt_tlv->data;
 
-		t.seconds_high = ntohs(t.seconds_high);
-		t.seconds_low = ntohl(t.seconds_low);
-		t.nanoseconds = ntohl(t.nanoseconds);
-
-		time.seconds = ((uint64_t)t.seconds_high << 32 | (uint64_t)t.seconds_low);
-		time.nanoseconds = t.nanoseconds;
+		time.seconds_high = ntohs(time.seconds_high);
+		time.seconds_low = ntohl(time.seconds_low);
+		time.nanoseconds = ntohl(time.nanoseconds);
 
 		memcpy(mgmt_tlv->data, &time, sizeof(time));
 		break;
@@ -342,15 +338,11 @@ static void tlv_mgmt_pre_send(struct ptp_tlv_mgmt *mgmt_tlv)
 		port_ds->mean_link_delay = htonll(port_ds->mean_link_delay);
 		break;
 	case PTP_MGMT_TIME:
-		struct ptp_protocol_timestamp t = *(struct ptp_protocol_timestamp *)mgmt_tlv->data;
-		struct ptp_timestamp time;
+		struct ptp_timestamp time = *(struct ptp_timestamp *)mgmt_tlv->data;
 
-		t.seconds_high = htons(t.seconds_high);
-		t.seconds_low = htonl(t.seconds_low);
-		t.nanoseconds = htonl(t.nanoseconds);
-
-		time.seconds = ((uint64_t)t.seconds_high << 32 | (uint64_t)t.seconds_low);
-		time.nanoseconds = t.nanoseconds;
+		time.seconds_high = htons(time.seconds_high);
+		time.seconds_low = htonl(time.seconds_low);
+		time.nanoseconds = htonl(time.nanoseconds);
 
 		memcpy(mgmt_tlv->data, &time, sizeof(time));
 		break;

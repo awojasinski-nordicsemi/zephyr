@@ -204,6 +204,10 @@ config PTP_STACK_SIZE
 	  Set the PTP thread stack size in bytes. The PTP thread handles the
 	  PTP state machine. There is one PTP thread in the system.
 
+config NET_PTP_INIT_PRIO
+	int "Startup priority for the PTP stack init"
+	default 96
+
 config PTP_MSG_POLL_SIZE
 	int "Number of messages available for allocation"
 	default 10
@@ -235,6 +239,16 @@ config PTP_FOREIGN_MASTER_FEATURE
 	bool
 	default y
 
+config PTP_FOREIGN_MASTER_RECORD_SIZE
+	int "Size of an array that stores foreign masters data"
+	depends on PTP_FOREIGN_MASTER_FEATURE
+	default 5
+	help
+	  The IEEE 1588-2019 standard states that minimum size of the list is 5 foreign master
+	  records per PTP Port. Kconfig does not allow for math operation so if
+	  PTP_FOREIGN_MASTER_FEATURE is enabled and PTP_NUM_PORTS is bigger than 1
+	  the option value should be adjusted accordingly.
+
 config PTP_PRIORITY1
 	int "Value used in the Best Master Clock Algorithm (BMCA)"
 	default 128
@@ -261,7 +275,7 @@ config PTP_FOREIGN_MASTER_LIST_SIZE
 config PTP_ANNOUNCE_RECV_TIMEOUT
 	int "Number of announce intervals to wait"
 	default 3
-	range 2 255
+	range 2 10
 	help
 	  Defines the number of announce intervals to wait without receiving
 	  an Announce message before assuming that the master is no longer
@@ -269,7 +283,8 @@ config PTP_ANNOUNCE_RECV_TIMEOUT
 
 config PTP_ANNOUNCE_LOG_INTERVAL
 	int "Interval between successive Announce messages"
-	default 127
+	default 1
+	range 0 4
 	help
 	  Defines mean time interval between successive Announce messages. The value should be
 	  uniform through PTP domain. For more check IEEE 1588-2019 Section 7.7.2.2.
@@ -278,13 +293,15 @@ config PTP_ANNOUNCE_LOG_INTERVAL
 config PTP_MIN_DELAY_REQ_LOG_INTERVAL
 	int "Interval between successive Delay_Req messages"
 	default 0
+	range 0 5
 	help
 	  The minimum time interval between Delay_Req messages.
 	  The value is the converted to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)
 
 config PTP_SYNC_LOG_INTERVAL
 	int "Interval between successive Sync messages"
-	default -3
+	default 0
+	range -1 1
 	help
 	  Specify mean time interval between successive Sync messages,
 	  when transmitted as multicast messages. The value is the converted
@@ -293,6 +310,7 @@ config PTP_SYNC_LOG_INTERVAL
 config PTP_MIN_PDELAY_REQ_LOG_INTERVAL
 	int "PDelay Req interval in Log2 base"
 	default 0
+	range 0 5
 	help
 	  Specifies minimum permitted mean time interval between successive Pdelay_Req messages.
 	  The value is the converted to nanoseconds as follow: nanoseconds = (10^9) * 2^(value)

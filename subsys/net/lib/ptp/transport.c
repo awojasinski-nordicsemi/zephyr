@@ -7,6 +7,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(ptp_transport, CONFIG_PTP_LOG_LEVEL);
 
+#include <errno.h>
+
 #include <zephyr/sys/__assert.h>
 #include <zephyr/net/socket.h>
 
@@ -87,27 +89,19 @@ static int transport_join_multicast(struct ptp_port *port)
 		memcpy(&mreqn.imr_multiaddr, &mcast_addr, sizeof(struct in_addr));
 		mreqn.imr_ifindex = net_if_get_by_iface(port->iface);
 
-		if (zsock_setsockopt(port->socket[0], IPPROTO_IP,
-				     IP_ADD_MEMBERSHIP, &mreqn, sizeof(mreqn))) {
-			goto error;
-		}
+		zsock_setsockopt(port->socket[1], IPPROTO_IP,
+				 IP_ADD_MEMBERSHIP, &mreqn, sizeof(mreqn));
 	} else {
 		struct ipv6_mreq mreqn = {0};
 
 		memcpy(&mreqn.ipv6mr_multiaddr, &mcast_addr, sizeof(struct in6_addr));
 		mreqn.ipv6mr_ifindex = net_if_get_by_iface(port->iface);
 
-		if (zsock_setsockopt(port->socket[0], IPPROTO_IPV6,
-				     IPV6_ADD_MEMBERSHIP, &mreqn, sizeof(mreqn))) {
-			goto error;
-		}
+		zsock_setsockopt(port->socket[0], IPPROTO_IPV6,
+				 IPV6_ADD_MEMBERSHIP, &mreqn, sizeof(mreqn));
 	}
 
 	return 0;
-error:
-	LOG_ERR("Failed to join multicast group");
-	ptp_transport_close(port);
-	return -1;
 }
 
 static int transport_udp_ipv4_open(struct net_if *iface, uint16_t port)
@@ -322,7 +316,7 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg, enum ptp_sock
 {
 	__ASSERT(PTP_SOCKET_CNT <= idx, "Invalid socket index");
 
-	int err = 0, cnt = 0;
+	int cnt = 0;
 	uint8_t ctrl[256] = {0};
 	struct cmsghdr *cmsg;
 	struct msghdr msghdr = {0};
@@ -342,13 +336,14 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg, enum ptp_sock
 		LOG_ERR("Failed receive PTP message");
 	}
 
-	for (cmsg = CMSG_FIRSTHDR(&msghdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&msghdr, cmsg)) {
-		if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SO_TIMESTAMPING) {
+	//for (cmsg = CMSG_FIRSTHDR(&msghdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&msghdr, cmsg)) {
+	//	if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SO_TIMESTAMPING) {
+	//		msg->timestamp.host.seconds = 0;
+	//		msg->timestamp.host.nanoseconds = 0;
+	//	}
+	//}
 
-		}
-	}
-
-	return err;
+	return cnt;
 }
 
 int ptp_transport_protocol_addr(struct ptp_port *port, uint8_t *addr)

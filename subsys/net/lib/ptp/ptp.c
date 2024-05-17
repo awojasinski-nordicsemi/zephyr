@@ -36,13 +36,12 @@ void event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event, stru
 
 static void ptp_handle_state_decision_evt(struct ptp_clock *clock)
 {
-	struct ptp_foreign_master_clock *best= NULL, *foreign;
+	struct ptp_foreign_master_clock *best = NULL, *foreign;
 	struct ptp_port *port;
 	bool master_changed = false;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
-		/* Compute best */
-		//foreign = ptp_port_compute_best_foreign(port);
+		foreign = ptp_port_compute_best_foreign(port);
 		if (!foreign) {
 			continue;
 		}
@@ -117,17 +116,18 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
+	k_sem_take(&ptp_sem, K_FOREVER);
+
 	while (1) {
-		k_sem_take(&ptp_sem, K_FOREVER);
 
 		ptp_clock_check_pollfd(clock);
-		zsock_poll(clock->pollfd, clock->default_ds.n_ports, 0);
+		zsock_poll(clock->pollfd, PTP_SOCKET_CNT * clock->default_ds.n_ports, 0);
 
 		fd = clock->pollfd;
 
 		SYS_SLIST_FOR_EACH_CONTAINER(&clock->ports_list, port, node) {
 
-			//ptp_port_if_link_monitor(port);
+			ptp_port_if_link_monitor(port);
 
 			if (atomic_get(&port->timeouts) != 0) {
 				struct k_timer *timers[] = {
@@ -172,7 +172,8 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 			clock->state_decision_event = false;
 		}
 
-		k_sleep(K_SECONDS(10));
+		k_yield();
+		log_thread_trigger();
 	}
 }
 
@@ -208,4 +209,4 @@ static int ptp_init(void)
 	return 0;
 }
 
-SYS_INIT(ptp_init, APPLICATION, 0);
+SYS_INIT(ptp_init, APPLICATION, CONFIG_NET_PTP_INIT_PRIO);

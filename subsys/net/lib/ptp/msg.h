@@ -18,6 +18,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/ptp_time.h>
 
 #include "ddt.h"
 
@@ -78,84 +79,84 @@ struct ptp_header {
  * @brief PTP Announce message header.
  */
 struct ptp_announce_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp origin_timestamp;
-	uint16_t		      current_utc_offset;
-	uint8_t			      reserved;
-	uint8_t			      gm_priority1;
-	struct ptp_clk_quality	      gm_clk_quality;
-	uint8_t			      gm_priority2;
-	ptp_clk_id		      gm_id;
-	uint16_t		      steps_rm;
-	uint8_t			      time_src;
-	uint8_t			      suffix[];
+	struct ptp_header      hdr;
+	struct ptp_timestamp   origin_timestamp;
+	uint16_t	       current_utc_offset;
+	uint8_t		       reserved;
+	uint8_t		       gm_priority1;
+	struct ptp_clk_quality gm_clk_quality;
+	uint8_t		       gm_priority2;
+	ptp_clk_id	       gm_id;
+	uint16_t	       steps_rm;
+	uint8_t		       time_src;
+	uint8_t		       suffix[];
 } __packed;
 
 /**
  * @brief PTP Sync message header.
  */
 struct ptp_sync_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp origin_timestamp;
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp origin_timestamp;
+	uint8_t		     suffix[];
 } __packed;
 
 /**
  * @brief PTP Delay_Req message header.
  */
 struct ptp_delay_req_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp origin_timestamp;
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp origin_timestamp;
+	uint8_t		     suffix[];
 } __packed;
 
 /**
  * @brief PTP Follow_Up message header.
  */
 struct ptp_follow_up_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp precise_origin_timestamp;
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp precise_origin_timestamp;
+	uint8_t		     suffix[];
 } __packed;
 
 /**
  * @brief PTP Delay_Resp message header.
  */
 struct ptp_delay_resp_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp receive_timestamp;
-	struct ptp_port_id	      req_port_id;
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp receive_timestamp;
+	struct ptp_port_id   req_port_id;
+	uint8_t		     suffix[];
 } __packed;
 
 /**
  * @brief PTP Pdelay_Req message header.
  */
 struct ptp_pdelay_req_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp origin_timestamp;
-	struct ptp_port_id	      reserved; /* make it the same length as ptp_pdelay_resp */
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp origin_timestamp;
+	struct ptp_port_id   reserved; /* make it the same length as ptp_pdelay_resp */
+	uint8_t		     suffix[];
 } __packed;
 
 /**
  * @brief PTP Pdelay_Resp message header.
  */
 struct ptp_pdelay_resp_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp req_receipt_timestamp;
-	struct ptp_port_id	      req_port_id;
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp req_receipt_timestamp;
+	struct ptp_port_id   req_port_id;
+	uint8_t		     suffix[];
 } __packed;
 
 /**
  * @brief PTP Pdelay_Resp_Follow_Up message header.
  */
 struct ptp_pdelay_resp_follow_up_msg {
-	struct ptp_header	      hdr;
-	struct ptp_protocol_timestamp resp_origin_timestamp;
-	struct ptp_port_id	      req_port_id;
-	uint8_t			      suffix[];
+	struct ptp_header    hdr;
+	struct ptp_timestamp resp_origin_timestamp;
+	struct ptp_port_id   req_port_id;
+	uint8_t		     suffix[];
 } __packed;
 
 /**
@@ -204,8 +205,8 @@ struct ptp_msg {
 		 * Depending on the messahe type the value comes from different
 		 * field of the message.
 		 */
-		struct ptp_timestamp protocol;
-		struct ptp_timestamp host; // Ingress timestamp on the host side.
+		struct net_ptp_time protocol;
+		struct net_ptp_time host; // Ingress timestamp on the host side.
 
 	} timestamp;
 	int ref;
