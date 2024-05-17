@@ -818,10 +818,8 @@ ZTEST(net_pkt_test_suite, test_net_pkt_clone)
 	net_pkt_set_captured(pkt, true);
 	net_pkt_set_eof(pkt, true);
 	net_pkt_set_ptp(pkt, true);
-#if CONFIG_PKT_TIMESTAMP
 	net_pkt_set_tx_timestamping(pkt, true);
 	net_pkt_set_rx_timestamping(pkt, true);
-#endif
 	net_pkt_set_forwarding(pkt, true);
 
 	net_pkt_set_l2_bridged(pkt, true);

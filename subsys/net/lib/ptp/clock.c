@@ -120,9 +120,9 @@ void ptp_clock_update_grandmaster(struct ptp_clock *clock)
 	clock->parent_ds.gm_priority1 = clock->default_ds.priority1;
 	clock->parent_ds.gm_priority2 = clock->default_ds.priority2;
 
-	clock->time_prop_ds.current_utc_offset = 0; //TODO IEEE 1588-2019 9.4
+	clock->time_prop_ds.current_utc_offset = 37; // IEEE 1588-2019 9.4
 	clock->time_prop_ds.time_src = clock->time_src;
-	clock->time_prop_ds.flags = 0; //TODO IEEE 1588-2019 9.4
+	clock->time_prop_ds.flags = 0;
 }
 
 void ptp_clock_update_slave(struct ptp_clock *clock)

@@ -473,8 +473,7 @@ static int port_delay_req_msg_process(struct ptp_port *port, struct ptp_msg *msg
 	resp->delay_resp.req_port_id = msg->header.src_port_id;
 
 	if (msg->header.flags[0] && PTP_MSG_UNICAST_FLAG) {
-		// do stuff specific for unicast message
-		// specify address for the message
+		// TODO handle unicast messages
 		resp->header.flags[0] |= PTP_MSG_UNICAST_FLAG;
 		resp->header.log_msg_interval = DEFAULT_LOG_MSG_INTERVAL;
 	}
@@ -1167,6 +1166,11 @@ static void port_free_delay_req(struct ptp_port *port)
 	}
 }
 
+static void port_cleanup_delay_req(struct ptp_port *port)
+{
+
+}
+
 static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_timer *timer)
 {
 	enum ptp_port_event event = PTP_EVT_NONE;
@@ -1215,7 +1219,10 @@ static enum ptp_port_event port_timers_process(struct ptp_port *port, struct k_t
 					       1,
 					       port->port_ds.log_announce_interval);
 			atomic_clear_bit(&port->timeouts, PORT_TIMER_DELAY_TO);
-			port_delay_req_msg_transmit(port);
+			port_cleanup_delay_req(port);
+			if (port_delay_req_msg_transmit(port) < 0) {
+				return PTP_EVT_FAULT_DETECTED;
+			}
 		}
 		/* fall through */
 	case PTP_PS_PASSIVE:
@@ -1606,8 +1613,8 @@ int ptp_port_add_foreign_master(struct ptp_port *port, struct ptp_msg *msg)
 
 	foreign_clock_cleanup(port->clock->phc, foreign);
 
-	foreign->messages_count++;
 	msg->ref++;
+	foreign->messages_count++;
 	k_fifo_put(&foreign->messages, (void*)msg);
 
 	if (foreign->messages_count > 1) {
@@ -1628,8 +1635,9 @@ int ptp_port_update_current_master(struct ptp_port *port, struct ptp_msg *msg)
 	}
 
 	foreign_clock_cleanup(port->clock->phc, foreign);
-	k_fifo_put(&foreign->messages, (void*)msg);
+	msg->ref++;
 	foreign->messages_count++;
+	k_fifo_put(&foreign->messages, (void*)msg);
 	port_timer_set_timeout_random(&port->timers.announce,
 				      port->port_ds.announce_receipt_timeout,
 				      1,

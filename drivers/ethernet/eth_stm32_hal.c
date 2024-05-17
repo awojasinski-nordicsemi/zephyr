@@ -790,14 +790,10 @@ release_desc:
 	}
 
 #if defined(CONFIG_PTP_CLOCK_STM32_HAL)
-	if (eth_is_ptp_pkt(get_iface(dev_data), pkt) ||
-	    net_pkt_is_rx_timestamping(pkt)) {
-		pkt->timestamp.second = timestamp.second;
-		pkt->timestamp.nanosecond = timestamp.nanosecond;
-	} else {
-		/* Invalid value */
-		pkt->timestamp.second = UINT64_MAX;
-		pkt->timestamp.nanosecond = UINT32_MAX;
+	pkt->timestamp.second = timestamp.second;
+	pkt->timestamp.nanosecond = timestamp.nanosecond;
+	if (timestamp.second != UINT64_MAX) {
+		net_pkt_set_rx_timestamping(pkt, true);
 	}
 #endif /* CONFIG_PTP_CLOCK_STM32_HAL */
 

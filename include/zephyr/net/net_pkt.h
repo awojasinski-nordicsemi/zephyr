@@ -387,27 +387,37 @@ static inline void net_pkt_set_ptp(struct net_pkt *pkt, bool is_ptp)
 	pkt->ptp_pkt = is_ptp;
 }
 
-#if defined(CONFIG_NET_PKT_TIMESTAMP)
 static inline bool net_pkt_is_tx_timestamping(struct net_pkt *pkt)
 {
+#if defined(CONFIG_NET_PKT_TIMESTAMP)
 	return !!(pkt->tx_timestamping);
+#else
+	return false;
+#endif
 }
 
 static inline void net_pkt_set_tx_timestamping(struct net_pkt *pkt, bool is_timestamping)
 {
+#if defined(CONFIG_NET_PKT_TIMESTAMP)
 	pkt->tx_timestamping = is_timestamping;
+#endif
 }
 
 static inline bool net_pkt_is_rx_timestamping(struct net_pkt *pkt)
 {
+#if defined(CONFIG_NET_PKT_TIMESTAMP)
 	return !!(pkt->rx_timestamping);
+#else
+	return false;
+#endif
 }
 
 static inline void net_pkt_set_rx_timestamping(struct net_pkt *pkt, bool is_timestamping)
 {
+#if defined(CONFIG_NET_PKT_TIMESTAMP)
 	pkt->rx_timestamping = is_timestamping;
-}
 #endif
+}
 
 static inline bool net_pkt_is_captured(struct net_pkt *pkt)
 {

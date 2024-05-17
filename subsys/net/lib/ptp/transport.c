@@ -108,7 +108,7 @@ static int transport_udp_ipv4_open(struct net_if *iface, uint16_t port)
 {
 	uint8_t tos;
 	socklen_t length;
-	int socket, ttl = 1, feature_on = 1;
+	int socket, ttl = 1;
 	struct sockaddr_in addr = {
 		.sin_family = AF_INET,
 		.sin_addr = INADDR_ANY_INIT,
@@ -119,11 +119,6 @@ static int transport_udp_ipv4_open(struct net_if *iface, uint16_t port)
 
 	if (socket < 0) {
 		return -1;
-	}
-
-	if (zsock_setsockopt(socket, IPPROTO_IP, IP_PKTINFO, &feature_on, sizeof(feature_on))) {
-		LOG_ERR("Failed to set IP_PKTINFO");
-		goto error;
 	}
 
 	if (zsock_setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl))) {
@@ -317,7 +312,7 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg, enum ptp_sock
 	__ASSERT(PTP_SOCKET_CNT <= idx, "Invalid socket index");
 
 	int cnt = 0;
-	uint8_t ctrl[256] = {0};
+	uint8_t ctrl[CMSG_SPACE(sizeof(struct net_ptp_time))] = {0};
 	struct cmsghdr *cmsg;
 	struct msghdr msghdr = {0};
 	struct iovec iov = {
@@ -336,12 +331,11 @@ int ptp_transport_recv(struct ptp_port *port, struct ptp_msg *msg, enum ptp_sock
 		LOG_ERR("Failed receive PTP message");
 	}
 
-	//for (cmsg = CMSG_FIRSTHDR(&msghdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&msghdr, cmsg)) {
-	//	if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SO_TIMESTAMPING) {
-	//		msg->timestamp.host.seconds = 0;
-	//		msg->timestamp.host.nanoseconds = 0;
-	//	}
-	//}
+	for (cmsg = CMSG_FIRSTHDR(&msghdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&msghdr, cmsg)) {
+		if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SO_TIMESTAMPING) {
+			memcpy(&msg->timestamp.host, CMSG_DATA(cmsg), sizeof(struct net_ptp_time));
+		}
+	}
 
 	return cnt;
 }

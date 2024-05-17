@@ -8,6 +8,7 @@
 LOG_MODULE_REGISTER(ptp, CONFIG_PTP_LOG_LEVEL);
 
 #include <zephyr/drivers/ptp_clock.h>
+#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/net/ethernet_mgmt.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/ptp.h>
@@ -172,8 +173,9 @@ static void ptp_thread(void *p1, void *p2, void *p3)
 			clock->state_decision_event = false;
 		}
 
-		k_yield();
-		log_thread_trigger();
+		k_msleep(10);
+		//k_yield();
+		//log_thread_trigger();
 	}
 }
 
