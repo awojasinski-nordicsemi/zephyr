@@ -9,5 +9,8 @@ target_include_directories(app PRIVATE
   ${ZEPHYR_BASE}/arch/${ARCH}/include
   )
 
-FILE(GLOB app_sources src/*.c)
-target_sources(app PRIVATE ${app_sources})
+target_sources(app PRIVATE src/main.c)
+
+if(DEFINED CONFIG_BACKING_STORE_CUSTOM)
+  target_sources(app PRIVATE src/flash.c)
+endif()
