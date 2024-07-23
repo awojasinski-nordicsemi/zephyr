@@ -1,0 +1,11 @@
+
+&flash_sim0 {
+	reg = <0x00000000 DT_SIZE_K(32)>;
+	partitions {
+		backing_store: partition@0 {
+			label = "backing_store";
+			reg = <0x0 0x8000>;
+			phandle = <0x2>;
+		};
+	};
+};

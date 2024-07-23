@@ -10,9 +10,12 @@
 #include <zephyr/timing/timing.h>
 #include <mmu.h>
 #include <zephyr/linker/sections.h>
+#include <zephyr/storage/flash_map.h>
 
 #ifdef CONFIG_BACKING_STORE_RAM_PAGES
 #define EXTRA_PAGES	(CONFIG_BACKING_STORE_RAM_PAGES - 1)
+#elif CONFIG_BACKING_STORE_CUSTOM
+#define EXTRA_PAGES	((FIXED_PARTITION_SIZE(backing_store) / CONFIG_MMU_PAGE_SIZE) - 1)
 #else
 #error "Unsupported configuration"
 #endif
@@ -89,6 +92,8 @@ ZTEST(demand_paging, test_map_anon_pages)
 {
 	arena_size = k_mem_free_get() + HALF_BYTES;
 	arena = k_mem_map(arena_size, K_MEM_PERM_RW);
+
+	printk("backing store pages: %d ", EXTRA_PAGES);
 
 	zassert_not_null(arena, "failed to map anonymous memory arena size %zu",
 			 arena_size);
@@ -337,8 +342,7 @@ ZTEST(demand_paging_stat, test_backing_store_capacity)
 	char *mem, *ret;
 	unsigned int key;
 	unsigned long faults;
-	size_t size = (((CONFIG_BACKING_STORE_RAM_PAGES - 1) - HALF_PAGES) *
-		       CONFIG_MMU_PAGE_SIZE);
+	size_t size = ((EXTRA_PAGES - HALF_PAGES) * CONFIG_MMU_PAGE_SIZE);
 
 	/* Consume the rest of memory */
 	mem = k_mem_map(size, K_MEM_PERM_RW);
