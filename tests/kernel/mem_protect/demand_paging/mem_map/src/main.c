@@ -13,6 +13,8 @@
 
 #ifdef CONFIG_BACKING_STORE_RAM_PAGES
 #define EXTRA_PAGES	(CONFIG_BACKING_STORE_RAM_PAGES - 1)
+#elif CONFIG_BACKING_STORE_CUSTOM
+#define EXTRA_PAGES	(BACKING_STORE_PAGES - 1)
 #else
 #error "Unsupported configuration"
 #endif
@@ -337,8 +339,7 @@ ZTEST(demand_paging_stat, test_backing_store_capacity)
 	char *mem, *ret;
 	unsigned int key;
 	unsigned long faults;
-	size_t size = (((CONFIG_BACKING_STORE_RAM_PAGES - 1) - HALF_PAGES) *
-		       CONFIG_MMU_PAGE_SIZE);
+	size_t size = ((EXTRA_PAGES - HALF_PAGES) * CONFIG_MMU_PAGE_SIZE);
 
 	/* Consume the rest of memory */
 	mem = k_mem_map(size, K_MEM_PERM_RW);
