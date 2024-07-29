@@ -13,6 +13,8 @@
 
 #ifdef CONFIG_BACKING_STORE_RAM_PAGES
 #define EXTRA_PAGES	(CONFIG_BACKING_STORE_RAM_PAGES - 1)
+#elif CONFIG_BACKING_STORE_CUSTOM
+#define EXTRA_PAGES	(BACKING_STORE_PAGES - 1)
 #else
 #error "Unsupported configuration"
 #endif
