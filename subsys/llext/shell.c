@@ -194,20 +194,24 @@ static int cmd_llext_call_fn(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_llext_load_fs(const struct shell *sh, size_t argc, char *argv[])
 {
 	int res;
+	char path[128];
 	struct fs_dirent dirent;
 
-	res = fs_stat(argv[2], &dirent);
+	strncpy(path, argv[2], sizeof(path));
+	path[sizeof(path) - 1] = '\0';
+
+	res = fs_stat(path, &dirent);
 	if (res) {
-		shell_error(sh, "Failed to obtain file %s, return code %d\n", argv[2], res);
+		shell_error(sh, "Failed to obtain file %s, return code %d\n", path, res);
 		return res;
 	}
 
 	if (dirent.type != FS_DIR_ENTRY_FILE) {
-		shell_error(sh, "Not a file %s", argv[2]);
+		shell_error(sh, "Not a file %s", path);
 		return -ENOEXEC;
 	}
 
-	struct llext_fs_loader fs_loader = LLEXT_FS_LOADER(argv[2]);
+	struct llext_fs_loader fs_loader = LLEXT_FS_LOADER(path);
 	struct llext_loader *ldr = &fs_loader.loader;
 	struct llext_load_param ldr_parm = LLEXT_LOAD_PARAM_DEFAULT;
 	struct llext *ext;
